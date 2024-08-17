@@ -4,7 +4,7 @@
 #'
 #' @param column The name of the column to use for the interpolation. If specified, `property` should be NULL.
 #' @param property The name of the property to use for the interpolation. If specified, `column` should be NULL.
-#' @param type The interpolation type (e.g., "linear").
+#' @param type The interpolation type. Can be one of `"linear"`, `c("exponential", base)` where `base` specifies the rate at which the output increases, or `c("cubic-bezier", x1, y1, x2, y2)` where you define a cubic bezier curve with control points.
 #' @param values A numeric vector of values at which stops occur.
 #' @param stops A vector of corresponding stops (colors, sizes, etc.) for the interpolation.
 #' @param na_color The color to use for missing values.  Mapbox GL JS defaults to black if this is not supplied.
@@ -31,6 +31,8 @@ interpolate <- function(column = NULL,
     rlang::abort("`values` and `stops` must have the same length.")
   }
 
+  stops <- trim_hex_colors(stops)
+
   if (!is.null(column)) {
     to_map <- list("get", column)
   } else if (!is.null(property)) {
@@ -39,12 +41,18 @@ interpolate <- function(column = NULL,
     rlang::abort("You must specify a column or property, but not both.")
   }
 
-  expr <- list("interpolate", list(type), to_map)
+  if (length(type) == 1 && !is.list(type)) {
+    type <- list(type)
+  }
+
+  expr <- list("interpolate", type, to_map)
   for (i in seq_along(values)) {
     expr <- c(expr, list(values[i]), list(stops[i]))
   }
 
   if (!is.null(na_color)) {
+    na_color <- trim_hex_colors(na_color)
+
     expr_with_na <- list("case", list("==", to_map, NULL), na_color, expr)
 
     expr_with_na
@@ -81,6 +89,9 @@ match_expr <- function(column = NULL, property = NULL, values, stops, default = 
   if (length(values) != length(stops)) {
     rlang::abort("`values` and `stops` must have the same length.")
   }
+
+  stops <- trim_hex_colors(stops)
+  default <- trim_hex_colors(default)
 
   if (!is.null(column)) {
     to_map <- list("get", column)
@@ -130,6 +141,10 @@ step_expr <- function(column = NULL, property = NULL, base, values, stops,
     rlang::abort("`values` and `stops` must have the same length.")
   }
 
+  # Trim colors as needed
+  base <- trim_hex_colors(base)
+  stops <- trim_hex_colors(stops)
+
   if (!is.null(column)) {
     to_map <- list("get", column)
   } else if (!is.null(property)) {
@@ -147,6 +162,8 @@ step_expr <- function(column = NULL, property = NULL, base, values, stops,
   }
 
   if (!is.null(na_color)) {
+    na_color <- trim_hex_colors(na_color)
+
     expr_with_na <- list("case", list("==", to_map, NULL), na_color, expr)
 
     expr_with_na
@@ -285,4 +302,11 @@ carto_style <- function(style_name) {
 #' @export
 get_column <- function(column) {
   list("get", column)
+}
+
+# Trim hex colors (so packages like viridisLite can be used)
+trim_hex_colors <- function(colors) {
+  ifelse(substr(colors, 1, 1) == "#" & nchar(colors) == 9,
+         substr(colors, 1, nchar(colors) - 2),
+         colors)
 }

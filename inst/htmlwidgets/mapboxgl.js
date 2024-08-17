@@ -6,6 +6,7 @@ HTMLWidgets.widget({
 
   factory: function(el, width, height) {
     let map;
+    let draw;
 
     return {
       renderValue: function(x) {
@@ -41,9 +42,9 @@ HTMLWidgets.widget({
                 var center = map.getCenter();
                 var zoom = map.getZoom();
 
-                Shiny.onInputChange(el.id + '_zoom', zoom);
-                Shiny.onInputChange(el.id + '_center', { lng: center.lng, lat: center.lat });
-                Shiny.onInputChange(el.id + '_bbox', {
+                Shiny.setInputValue(el.id + '_zoom', zoom);
+                Shiny.setInputValue(el.id + '_center', { lng: center.lng, lat: center.lat });
+                Shiny.setInputValue(el.id + '_bbox', {
                   xmin: bounds.getWest(),
                   ymin: bounds.getSouth(),
                   xmax: bounds.getEast(),
@@ -122,11 +123,20 @@ HTMLWidgets.widget({
                 });
               } else if (source.type === "geojson") {
                 const geojsonData = source.data;
-                map.addSource(source.id, {
-                  type: 'geojson',
-                  data: geojsonData,
-                  generateId: true
-                });
+                const sourceOptions = {
+                    type: 'geojson',
+                    data: geojsonData,
+                    generateId: source.generateId
+                  };
+
+                  // Add additional options
+                  for (const [key, value] of Object.entries(source)) {
+                    if (!['id', 'type', 'data', 'generateId'].includes(key)) {
+                      sourceOptions[key] = value;
+                    }
+                  }
+
+                  map.addSource(source.id, sourceOptions);
               } else if (source.type === "raster") {
                 if (source.url) {
                   map.addSource(source.id, {
@@ -335,6 +345,43 @@ HTMLWidgets.widget({
             map.jumpTo(x.jumpTo);
           }
 
+          // Add scale control if enabled
+          if (x.scale_control) {
+            const scaleControl = new mapboxgl.ScaleControl({
+              maxWidth: x.scale_control.maxWidth,
+              unit: x.scale_control.unit
+            });
+            map.addControl(scaleControl, x.scale_control.position);
+            map.controls.push(scaleControl);
+          }
+
+          if (x.draw_control && x.draw_control.enabled) {
+            draw = new MapboxDraw(x.draw_control.options);
+            map.addControl(draw, x.draw_control.position);
+            map.controls.push(draw);
+
+            // Add event listeners
+            map.on('draw.create', updateDrawnFeatures);
+            map.on('draw.delete', updateDrawnFeatures);
+            map.on('draw.update', updateDrawnFeatures);
+          }
+
+          function updateDrawnFeatures() {
+            if (draw) {
+              var drawnFeatures = draw.getAll();
+              if (HTMLWidgets.shinyMode) {
+                Shiny.setInputValue(el.id + '_drawn_features', JSON.stringify(drawnFeatures));
+              }
+              // Store drawn features in the widget's data
+              if (el.querySelector) {
+                var widget = HTMLWidgets.find("#" + el.id);
+                if (widget) {
+                  widget.drawFeatures = drawnFeatures;
+                }
+              }
+            }
+          }
+
           const existingLegend = document.getElementById('mapboxgl-legend');
           if (existingLegend) {
             existingLegend.remove();
@@ -468,6 +515,10 @@ HTMLWidgets.widget({
 
       getMap: function() {
         return map;  // Return the map instance
+      },
+
+      getDrawnFeatures: function() {
+        return this.drawFeatures || {type: "FeatureCollection", features: []};
       },
 
       resize: function(width, height) {
@@ -636,6 +687,24 @@ if (HTMLWidgets.shinyMode) {
         });
         map.addControl(nav, message.position);
         map.controls.push(nav);
+      } else if (message.type === "add_draw_control") {
+        draw = new MapboxDraw(message.options);
+        map.addControl(draw, message.position);
+        map.controls.push(draw);
+
+        // Add event listeners
+        map.on('draw.create', updateDrawnFeatures);
+        map.on('draw.delete', updateDrawnFeatures);
+        map.on('draw.update', updateDrawnFeatures);
+      } else if (message.type === "get_drawn_features") {
+        const features = draw ? draw.getAll() : null;
+        Shiny.setInputValue(data.id + '_drawn_features', JSON.stringify(features));
+      } else if (message.type === "clear_drawn_features") {
+        if (draw) {
+          draw.deleteAll();
+          // Update the drawn features
+          updateDrawnFeatures();
+        }
       } else if (message.type === "add_markers") {
           if (!window.mapboxglMarkers) {
             window.mapboxglMarkers = [];
@@ -680,6 +749,13 @@ if (HTMLWidgets.shinyMode) {
         const fullscreen = new mapboxgl.FullscreenControl();
         map.addControl(fullscreen, position);
         map.controls.push(fullscreen)
+      } else if (message.type === "add_scale_control") {
+        const scaleControl = new mapboxgl.ScaleControl({
+          maxWidth: message.options.maxWidth,
+          unit: message.options.unit
+        });
+        map.addControl(scaleControl, message.options.position);
+        map.controls.push(scaleControl);
       } else if (message.type === "add_layers_control") {
         const layersControl = document.createElement('div');
         layersControl.id = message.control_id;

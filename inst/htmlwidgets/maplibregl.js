@@ -36,9 +36,9 @@ HTMLWidgets.widget({
                 var center = map.getCenter();
                 var zoom = map.getZoom();
 
-                Shiny.onInputChange(el.id + '_zoom', zoom);
-                Shiny.onInputChange(el.id + '_center', { lng: center.lng, lat: center.lat });
-                Shiny.onInputChange(el.id + '_bbox', {
+                Shiny.setInputValue(el.id + '_zoom', zoom);
+                Shiny.setInputValue(el.id + '_center', { lng: center.lng, lat: center.lat });
+                Shiny.setInputValue(el.id + '_bbox', {
                   xmin: bounds.getWest(),
                   ymin: bounds.getSouth(),
                   xmax: bounds.getEast(),
@@ -117,12 +117,21 @@ HTMLWidgets.widget({
                   url: source.url
                 });
               } else if (source.type === "geojson") {
-                const geojsonData = source.geojson;
-                map.addSource(source.id, {
-                  type: 'geojson',
-                  data: geojsonData,
-                  generateId: true
-                });
+                const geojsonData = source.data;
+                const sourceOptions = {
+                    type: 'geojson',
+                    data: geojsonData,
+                    generateId: source.generateId
+                  };
+
+                  // Add additional options
+                  for (const [key, value] of Object.entries(source)) {
+                    if (!['id', 'type', 'data', 'generateId'].includes(key)) {
+                      sourceOptions[key] = value;
+                    }
+                  }
+
+                  map.addSource(source.id, sourceOptions);
               } else if (source.type === "raster") {
                 if (source.url) {
                   map.addSource(source.id, {
@@ -330,6 +339,16 @@ HTMLWidgets.widget({
           }
           if (x.jumpTo) {
             map.jumpTo(x.jumpTo);
+          }
+
+          // Add scale control if enabled
+          if (x.scale_control) {
+            const scaleControl = new maplibregl.ScaleControl({
+              maxWidth: x.scale_control.maxWidth,
+              unit: x.scale_control.unit
+            });
+            map.addControl(scaleControl, x.scale_control.position);
+            map.controls.push(scaleControl);
           }
 
           const existingLegend = document.getElementById('mapboxgl-legend');
@@ -681,6 +700,13 @@ if (HTMLWidgets.shinyMode) {
         const fullscreen = new maplibregl.FullscreenControl();
         map.addControl(fullscreen, position);
         map.controls.push(fullscreen);
+      } else if (message.type === "add_scale_control") {
+        const scaleControl = new maplibregl.ScaleControl({
+          maxWidth: message.options.maxWidth,
+          unit: message.options.unit
+        });
+        map.addControl(scaleControl, message.options.position);
+        map.controls.push(scaleControl);
       } else if (message.type === "add_layers_control") {
         const layersControl = document.createElement('div');
         layersControl.id = message.control_id;
