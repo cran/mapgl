@@ -18,7 +18,8 @@ add_layer(
   popup = NULL,
   tooltip = NULL,
   hover_options = NULL,
-  before_id = NULL
+  before_id = NULL,
+  filter = NULL
 )
 }
 \arguments{
@@ -49,6 +50,8 @@ add_layer(
 \item{hover_options}{A named list of options for highlighting features in the layer on hover.}
 
 \item{before_id}{The name of the layer that this layer appears "before", allowing you to insert layers below other layers in your basemap (e.g. labels).}
+
+\item{filter}{An optional filter expression to subset features in the layer.}
 }
 \value{
 The modified map object with the new layer added.
@@ -67,25 +70,25 @@ nc_tracts <- tracts(state = "NC", cb = TRUE)
 
 # Create a Mapbox GL map
 map <- mapboxgl(
- style = mapbox_style("light"),
- center = c(-79.0193, 35.7596),
- zoom = 7
+    style = mapbox_style("light"),
+    center = c(-79.0193, 35.7596),
+    zoom = 7
 )
 
 # Add a source and fill layer for North Carolina tracts
 map \%>\%
- add_source(
-   id = "nc-tracts",
-   data = nc_tracts
- ) \%>\%
- add_layer(
-   id = "nc-layer",
-   type = "fill",
-   source = "nc-tracts",
-   paint = list(
-     "fill-color" = "#888888",
-     "fill-opacity" = 0.4
-   )
- )
+    add_source(
+        id = "nc-tracts",
+        data = nc_tracts
+    ) \%>\%
+    add_layer(
+        id = "nc-layer",
+        type = "fill",
+        source = "nc-tracts",
+        paint = list(
+            "fill-color" = "#888888",
+            "fill-opacity" = 0.4
+        )
+    )
 }
 }

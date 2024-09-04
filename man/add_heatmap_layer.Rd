@@ -18,7 +18,8 @@ add_heatmap_layer(
   slot = NULL,
   min_zoom = NULL,
   max_zoom = NULL,
-  before_id = NULL
+  before_id = NULL,
+  filter = NULL
 )
 }
 \arguments{
@@ -49,6 +50,8 @@ add_heatmap_layer(
 \item{max_zoom}{The maximum zoom level for the layer.}
 
 \item{before_id}{The name of the layer that this layer appears "before", allowing you to insert layers below other layers in your basemap (e.g. labels).}
+
+\item{filter}{An optional filter expression to subset features in the layer.}
 }
 \value{
 The modified map object with the new heatmap layer added.
@@ -60,33 +63,37 @@ Add a heatmap layer to a Mapbox GL map
 \dontrun{
 library(mapgl)
 
-mapboxgl(style = mapbox_style("dark"),
-         center = c(-120, 50),
-         zoom = 2) |>
-  add_heatmap_layer(
-    id = "earthquakes-heat",
-    source = list(
-      type = "geojson",
-      data = "https://docs.mapbox.com/mapbox-gl-js/assets/earthquakes.geojson"
-    ),
-    heatmap_weight = interpolate(
-      column = "mag",
-      values = c(0, 6),
-      stops = c(0, 1)
-    ),
-    heatmap_intensity = interpolate(
-      property = "zoom",
-      values = c(0, 9),
-      stops = c(1, 3)
-    ),
-    heatmap_color = interpolate(
-      property = "heatmap-density",
-      values = seq(0, 1, 0.2),
-      stops = c('rgba(33,102,172,0)', 'rgb(103,169,207)',
-                'rgb(209,229,240)', 'rgb(253,219,199)',
-                'rgb(239,138,98)', 'rgb(178,24,43)')
-    ),
-    heatmap_opacity = 0.7
-  )
+mapboxgl(
+    style = mapbox_style("dark"),
+    center = c(-120, 50),
+    zoom = 2
+) |>
+    add_heatmap_layer(
+        id = "earthquakes-heat",
+        source = list(
+            type = "geojson",
+            data = "https://docs.mapbox.com/mapbox-gl-js/assets/earthquakes.geojson"
+        ),
+        heatmap_weight = interpolate(
+            column = "mag",
+            values = c(0, 6),
+            stops = c(0, 1)
+        ),
+        heatmap_intensity = interpolate(
+            property = "zoom",
+            values = c(0, 9),
+            stops = c(1, 3)
+        ),
+        heatmap_color = interpolate(
+            property = "heatmap-density",
+            values = seq(0, 1, 0.2),
+            stops = c(
+                "rgba(33,102,172,0)", "rgb(103,169,207)",
+                "rgb(209,229,240)", "rgb(253,219,199)",
+                "rgb(239,138,98)", "rgb(178,24,43)"
+            )
+        ),
+        heatmap_opacity = 0.7
+    )
 }
 }

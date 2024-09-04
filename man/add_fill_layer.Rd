@@ -25,7 +25,8 @@ add_fill_layer(
   popup = NULL,
   tooltip = NULL,
   hover_options = NULL,
-  before_id = NULL
+  before_id = NULL,
+  filter = NULL
 )
 }
 \arguments{
@@ -70,6 +71,8 @@ add_fill_layer(
 \item{hover_options}{A named list of options for highlighting features in the layer on hover.}
 
 \item{before_id}{The name of the layer that this layer appears "before", allowing you to insert layers below other layers in your basemap (e.g. labels).}
+
+\item{filter}{An optional filter expression to subset features in the layer.}
 }
 \value{
 The modified map object with the new fill layer added.
@@ -82,25 +85,25 @@ Add a fill layer to a map
 library(tidycensus)
 
 fl_age <- get_acs(
-  geography = "tract",
-  variables = "B01002_001",
-  state = "FL",
-  year = 2022,
-  geometry = TRUE
+    geography = "tract",
+    variables = "B01002_001",
+    state = "FL",
+    year = 2022,
+    geometry = TRUE
 )
 
 mapboxgl() |>
-  fit_bounds(fl_age, animate = FALSE) |>
-  add_fill_layer(
-    id = "fl_tracts",
-    source = fl_age,
-    fill_color = interpolate(
-      column = "estimate",
-      values = c(20, 80),
-      stops = c("lightblue", "darkblue"),
-      na_color = "lightgrey"
-    ),
-    fill_opacity = 0.5
-  )
+    fit_bounds(fl_age, animate = FALSE) |>
+    add_fill_layer(
+        id = "fl_tracts",
+        source = fl_age,
+        fill_color = interpolate(
+            column = "estimate",
+            values = c(20, 80),
+            stops = c("lightblue", "darkblue"),
+            na_color = "lightgrey"
+        ),
+        fill_opacity = 0.5
+    )
 }
 }

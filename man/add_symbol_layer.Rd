@@ -44,7 +44,7 @@ add_symbol_layer(
   symbol_z_order = NULL,
   text_allow_overlap = NULL,
   text_anchor = NULL,
-  text_color = NULL,
+  text_color = "black",
   text_emissive_strength = NULL,
   text_field = NULL,
   text_font = NULL,
@@ -79,7 +79,9 @@ add_symbol_layer(
   popup = NULL,
   tooltip = NULL,
   hover_options = NULL,
-  before_id = NULL
+  before_id = NULL,
+  filter = NULL,
+  cluster_options = NULL
 )
 }
 \arguments{
@@ -232,6 +234,10 @@ add_symbol_layer(
 \item{hover_options}{A named list of options for highlighting features in the layer on hover. Not all elements of SVG icons can be styled.}
 
 \item{before_id}{The name of the layer that this layer appears "before", allowing you to insert layers below other layers in your basemap (e.g. labels).}
+
+\item{filter}{An optional filter expression to subset features in the layer.}
+
+\item{cluster_options}{A list of options for clustering symbols, created by the \code{cluster_options()} function.}
 }
 \value{
 The modified map object with the new symbol layer added.
@@ -249,39 +255,41 @@ library(dplyr)
 set.seed(1234)
 
 # Define the bounding box for Washington DC (approximately)
-bbox <- st_bbox(c(
-  xmin = -77.119759,
-  ymin = 38.791645,
-  xmax = -76.909393,
-  ymax = 38.995548
-),
-crs = st_crs(4326))
+bbox <- st_bbox(
+    c(
+        xmin = -77.119759,
+        ymin = 38.791645,
+        xmax = -76.909393,
+        ymax = 38.995548
+    ),
+    crs = st_crs(4326)
+)
 
 # Generate 30 random points within the bounding box
 random_points <- st_as_sf(
-  data.frame(
-    id = 1:30,
-    lon = runif(30, bbox["xmin"], bbox["xmax"]),
-    lat = runif(30, bbox["ymin"], bbox["ymax"])
-  ),
-  coords = c("lon", "lat"),
-  crs = 4326
+    data.frame(
+        id = 1:30,
+        lon = runif(30, bbox["xmin"], bbox["xmax"]),
+        lat = runif(30, bbox["ymin"], bbox["ymax"])
+    ),
+    coords = c("lon", "lat"),
+    crs = 4326
 )
 
 # Assign random icons
-icons <- c('music', 'bar', 'theatre', 'bicycle')
+icons <- c("music", "bar", "theatre", "bicycle")
 random_points <- random_points |>
-  mutate(icon = sample(icons, n(), replace = TRUE))
+    mutate(icon = sample(icons, n(), replace = TRUE))
 
 # Map with icons
 mapboxgl(style = mapbox_style("light")) |>
-  fit_bounds(random_points, animate = FALSE) |>
-  add_symbol_layer(
-    id = "points-of-interest",
-    source = random_points,
-    icon_image = c("get", "icon"),
-    icon_allow_overlap = TRUE,
-    tooltip = "icon"
-  )
+    fit_bounds(random_points, animate = FALSE) |>
+    add_symbol_layer(
+        id = "points-of-interest",
+        source = random_points,
+        icon_image = c("get", "icon"),
+        icon_allow_overlap = TRUE,
+        tooltip = "icon"
+    )
 }
 }
