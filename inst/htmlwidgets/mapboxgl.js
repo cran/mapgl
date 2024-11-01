@@ -100,7 +100,7 @@ HTMLWidgets.widget({
 
                             if (marker.popup) {
                                 mapMarker.setPopup(
-                                    new mapboxgl.Popup({ offset: 25 }).setText(
+                                    new mapboxgl.Popup({ offset: 25 }).setHTML(
                                         marker.popup,
                                     ),
                                 );
@@ -271,6 +271,17 @@ HTMLWidgets.widget({
                                             .setHTML(description)
                                             .addTo(map);
                                     });
+
+                                    // Change cursor to pointer when hovering over the layer
+                                    map.on("mouseenter", layer.id, function () {
+                                        map.getCanvas().style.cursor =
+                                            "pointer";
+                                    });
+
+                                    // Change cursor back to default when leaving the layer
+                                    map.on("mouseleave", layer.id, function () {
+                                        map.getCanvas().style.cursor = "";
+                                    });
                                 }
 
                                 if (layer.tooltip) {
@@ -318,46 +329,59 @@ HTMLWidgets.widget({
                                     map.on("mousemove", layer.id, function (e) {
                                         if (e.features.length > 0) {
                                             if (hoveredFeatureId !== null) {
-                                                map.setFeatureState(
-                                                    {
-                                                        source:
-                                                            typeof layer.source ===
-                                                            "string"
-                                                                ? layer.source
-                                                                : layer.id,
-                                                        id: hoveredFeatureId,
-                                                    },
-                                                    { hover: false },
-                                                );
-                                            }
-                                            hoveredFeatureId = e.features[0].id;
-                                            map.setFeatureState(
-                                                {
+                                                const featureState = {
                                                     source:
                                                         typeof layer.source ===
                                                         "string"
                                                             ? layer.source
                                                             : layer.id,
                                                     id: hoveredFeatureId,
-                                                },
-                                                { hover: true },
-                                            );
+                                                };
+                                                if (layer.source_layer) {
+                                                    featureState.sourceLayer =
+                                                        layer.source_layer;
+                                                }
+                                                map.setFeatureState(
+                                                    featureState,
+                                                    { hover: false },
+                                                );
+                                            }
+                                            hoveredFeatureId = e.features[0].id;
+                                            const featureState = {
+                                                source:
+                                                    typeof layer.source ===
+                                                    "string"
+                                                        ? layer.source
+                                                        : layer.id,
+                                                id: hoveredFeatureId,
+                                            };
+                                            if (layer.source_layer) {
+                                                featureState.sourceLayer =
+                                                    layer.source_layer;
+                                            }
+                                            map.setFeatureState(featureState, {
+                                                hover: true,
+                                            });
                                         }
                                     });
 
                                     map.on("mouseleave", layer.id, function () {
                                         if (hoveredFeatureId !== null) {
-                                            map.setFeatureState(
-                                                {
-                                                    source:
-                                                        typeof layer.source ===
-                                                        "string"
-                                                            ? layer.source
-                                                            : layer.id,
-                                                    id: hoveredFeatureId,
-                                                },
-                                                { hover: false },
-                                            );
+                                            const featureState = {
+                                                source:
+                                                    typeof layer.source ===
+                                                    "string"
+                                                        ? layer.source
+                                                        : layer.id,
+                                                id: hoveredFeatureId,
+                                            };
+                                            if (layer.source_layer) {
+                                                featureState.sourceLayer =
+                                                    layer.source_layer;
+                                            }
+                                            map.setFeatureState(featureState, {
+                                                hover: false,
+                                            });
                                         }
                                         hoveredFeatureId = null;
                                     });
@@ -448,6 +472,22 @@ HTMLWidgets.widget({
                         map.controls.push(scaleControl);
                     }
 
+                    // Add globe minimap if enabled
+                    if (x.globe_minimap && x.globe_minimap.enabled) {
+                        const globeMinimapOptions = {
+                            globeSize: x.globe_minimap.globe_size,
+                            landColor: x.globe_minimap.land_color,
+                            waterColor: x.globe_minimap.water_color,
+                            markerColor: x.globe_minimap.marker_color,
+                            markerSize: x.globe_minimap.marker_size,
+                        };
+                        const globeMinimap = new GlobeMinimap(
+                            globeMinimapOptions,
+                        );
+                        map.addControl(globeMinimap, x.globe_minimap.position);
+                        map.controls.push(globeMinimap);
+                    }
+
                     // Add geocoder control if enabled
                     if (x.geocoder_control) {
                         const geocoderOptions = {
@@ -487,8 +527,23 @@ HTMLWidgets.widget({
                         if (x.draw_control.freehand) {
                             drawOptions = Object.assign({}, drawOptions, {
                                 modes: Object.assign({}, MapboxDraw.modes, {
-                                    draw_polygon:
+                                    draw_polygon: Object.assign(
+                                        {},
                                         MapboxDraw.modes.draw_freehand,
+                                        {
+                                            // Store the simplify_freehand option on the map object
+                                            onSetup: function (opts) {
+                                                const state =
+                                                    MapboxDraw.modes.draw_freehand.onSetup.call(
+                                                        this,
+                                                        opts,
+                                                    );
+                                                this.map.simplify_freehand =
+                                                    x.draw_control.simplify_freehand;
+                                                return state;
+                                            },
+                                        },
+                                    ),
                                 }),
                                 // defaultMode: 'draw_polygon' # Don't set the default yet
                             });
@@ -502,6 +557,17 @@ HTMLWidgets.widget({
                         map.on("draw.create", updateDrawnFeatures);
                         map.on("draw.delete", updateDrawnFeatures);
                         map.on("draw.update", updateDrawnFeatures);
+
+                        // Apply orientation styling
+                        if (x.draw_control.orientation === "horizontal") {
+                            const drawBar = map
+                                .getContainer()
+                                .querySelector(".mapboxgl-ctrl-group");
+                            if (drawBar) {
+                                drawBar.style.display = "flex";
+                                drawBar.style.flexDirection = "row";
+                            }
+                        }
                     }
 
                     function updateDrawnFeatures() {
@@ -523,10 +589,10 @@ HTMLWidgets.widget({
                         }
                     }
 
-                    const existingLegend =
-                        document.getElementById("mapboxgl-legend");
-                    if (existingLegend) {
-                        existingLegend.remove();
+                    if (!x.add) {
+                        const existingLegends =
+                            el.querySelectorAll(".mapboxgl-legend");
+                        existingLegends.forEach((legend) => legend.remove());
                     }
 
                     if (x.legend_html && x.legend_css) {
@@ -536,7 +602,7 @@ HTMLWidgets.widget({
 
                         const legend = document.createElement("div");
                         legend.innerHTML = x.legend_html;
-                        // legend.classList.add("mapboxgl-legend");
+                        legend.classList.add("mapboxgl-legend");
                         el.appendChild(legend);
                     }
 
@@ -549,6 +615,26 @@ HTMLWidgets.widget({
                         map.controls.push(fullscreen);
                     }
 
+                    // Add geolocate control if enabled
+                    if (x.geolocate_control) {
+                        const geolocate = new mapboxgl.GeolocateControl({
+                            positionOptions:
+                                x.geolocate_control.positionOptions,
+                            trackUserLocation:
+                                x.geolocate_control.trackUserLocation,
+                            showAccuracyCircle:
+                                x.geolocate_control.showAccuracyCircle,
+                            showUserLocation:
+                                x.geolocate_control.showUserLocation,
+                            showUserHeading:
+                                x.geolocate_control.showUserHeading,
+                            fitBoundsOptions:
+                                x.geolocate_control.fitBoundsOptions,
+                        });
+                        map.addControl(geolocate, x.geolocate_control.position);
+                        map.controls.push(geolocate);
+                    }
+
                     // Add navigation control if enabled
                     if (x.navigation_control) {
                         const nav = new mapboxgl.NavigationControl({
@@ -559,6 +645,18 @@ HTMLWidgets.widget({
                         });
                         map.addControl(nav, x.navigation_control.position);
                         map.controls.push(nav);
+
+                        if (x.navigation_control.orientation === "horizontal") {
+                            const navBar = map
+                                .getContainer()
+                                .querySelector(
+                                    ".mapboxgl-ctrl.mapboxgl-ctrl-group:not(.mapbox-gl-draw_ctrl-draw-btn)",
+                                );
+                            if (navBar) {
+                                navBar.style.display = "flex";
+                                navBar.style.flexDirection = "row";
+                            }
+                        }
                     }
 
                     // Add reset control if enabled
@@ -633,6 +731,32 @@ HTMLWidgets.widget({
                                 );
                             },
                         });
+                    }
+
+                    if (x.images && Array.isArray(x.images)) {
+                        x.images.forEach(function (imageInfo) {
+                            map.loadImage(
+                                imageInfo.url,
+                                function (error, image) {
+                                    if (error) {
+                                        console.error(
+                                            "Error loading image:",
+                                            error,
+                                        );
+                                        return;
+                                    }
+                                    if (!map.hasImage(imageInfo.id)) {
+                                        map.addImage(
+                                            imageInfo.id,
+                                            image,
+                                            imageInfo.options,
+                                        );
+                                    }
+                                },
+                            );
+                        });
+                    } else if (x.images) {
+                        console.error("x.images is not an array:", x.images);
                     }
 
                     // Add the layers control if provided
@@ -814,7 +938,9 @@ HTMLWidgets.widget({
 
 if (HTMLWidgets.shinyMode) {
     Shiny.addCustomMessageHandler("mapboxgl-proxy", function (data) {
-        var map = HTMLWidgets.find("#" + data.id).getMap();
+        var widget = HTMLWidgets.find("#" + data.id);
+        if (!widget) return;
+        var map = widget.getMap();
         if (map) {
             var message = data.message;
             if (message.type === "set_filter") {
@@ -885,6 +1011,16 @@ if (HTMLWidgets.shinyMode) {
                                 .setHTML(description)
                                 .addTo(map);
                         });
+
+                        // Change cursor to pointer when hovering over the layer
+                        map.on("mouseenter", message.layer.id, function () {
+                            map.getCanvas().style.cursor = "pointer";
+                        });
+
+                        // Change cursor back to default when leaving the layer
+                        map.on("mouseleave", message.layer.id, function () {
+                            map.getCanvas().style.cursor = "";
+                        });
                     }
 
                     if (message.layer.tooltip) {
@@ -931,46 +1067,56 @@ if (HTMLWidgets.shinyMode) {
                         map.on("mousemove", message.layer.id, function (e) {
                             if (e.features.length > 0) {
                                 if (hoveredFeatureId !== null) {
-                                    map.setFeatureState(
-                                        {
-                                            source:
-                                                typeof message.layer.source ===
-                                                "string"
-                                                    ? message.layer.source
-                                                    : message.layer.id,
-                                            id: hoveredFeatureId,
-                                        },
-                                        { hover: false },
-                                    );
-                                }
-                                hoveredFeatureId = e.features[0].id;
-                                map.setFeatureState(
-                                    {
+                                    const featureState = {
                                         source:
                                             typeof message.layer.source ===
                                             "string"
                                                 ? message.layer.source
                                                 : message.layer.id,
                                         id: hoveredFeatureId,
-                                    },
-                                    { hover: true },
-                                );
+                                    };
+                                    if (message.layer.source_layer) {
+                                        featureState.sourceLayer =
+                                            message.layer.source_layer;
+                                    }
+                                    map.setFeatureState(featureState, {
+                                        hover: false,
+                                    });
+                                }
+                                hoveredFeatureId = e.features[0].id;
+                                const featureState = {
+                                    source:
+                                        typeof message.layer.source === "string"
+                                            ? message.layer.source
+                                            : message.layer.id,
+                                    id: hoveredFeatureId,
+                                };
+                                if (message.layer.source_layer) {
+                                    featureState.sourceLayer =
+                                        message.layer.source_layer;
+                                }
+                                map.setFeatureState(featureState, {
+                                    hover: true,
+                                });
                             }
                         });
 
                         map.on("mouseleave", message.layer.id, function () {
                             if (hoveredFeatureId !== null) {
-                                map.setFeatureState(
-                                    {
-                                        source:
-                                            typeof message.layer.source ===
-                                            "string"
-                                                ? message.layer.source
-                                                : message.layer.id,
-                                        id: hoveredFeatureId,
-                                    },
-                                    { hover: false },
-                                );
+                                const featureState = {
+                                    source:
+                                        typeof message.layer.source === "string"
+                                            ? message.layer.source
+                                            : message.layer.id,
+                                    id: hoveredFeatureId,
+                                };
+                                if (message.layer.source_layer) {
+                                    featureState.sourceLayer =
+                                        message.layer.source_layer;
+                                }
+                                map.setFeatureState(featureState, {
+                                    hover: false,
+                                });
                             }
                             hoveredFeatureId = null;
                         });
@@ -1020,17 +1166,47 @@ if (HTMLWidgets.shinyMode) {
                     message.value,
                 );
             } else if (message.type === "set_paint_property") {
-                map.setPaintProperty(
-                    message.layer,
-                    message.name,
-                    message.value,
+                const layerId = message.layer;
+                const propertyName = message.name;
+                const newValue = message.value;
+
+                // Check if the layer has hover options
+                const layerStyle = map
+                    .getStyle()
+                    .layers.find((layer) => layer.id === layerId);
+                const currentPaintProperty = map.getPaintProperty(
+                    layerId,
+                    propertyName,
                 );
+
+                if (
+                    currentPaintProperty &&
+                    Array.isArray(currentPaintProperty) &&
+                    currentPaintProperty[0] === "case"
+                ) {
+                    // This property has hover options, so we need to preserve them
+                    const hoverValue = currentPaintProperty[2];
+                    const newPaintProperty = [
+                        "case",
+                        ["boolean", ["feature-state", "hover"], false],
+                        hoverValue,
+                        newValue,
+                    ];
+                    map.setPaintProperty(
+                        layerId,
+                        propertyName,
+                        newPaintProperty,
+                    );
+                } else {
+                    // No hover options, just set the new value directly
+                    map.setPaintProperty(layerId, propertyName, newValue);
+                }
             } else if (message.type === "add_legend") {
-                const existingLegend = document.querySelector(
-                    `#${data.id} .mapboxgl-legend`,
-                );
-                if (existingLegend) {
-                    existingLegend.remove();
+                if (!message.add) {
+                    const existingLegends = document.querySelectorAll(
+                        `#${data.id} .mapboxgl-legend`,
+                    );
+                    existingLegends.forEach((legend) => legend.remove());
                 }
 
                 const legendCss = document.createElement("style");
@@ -1067,6 +1243,18 @@ if (HTMLWidgets.shinyMode) {
                 });
                 map.addControl(nav, message.position);
                 map.controls.push(nav);
+
+                if (message.orientation === "horizontal") {
+                    const navBar = map
+                        .getContainer()
+                        .querySelector(
+                            ".mapboxgl-ctrl.mapboxgl-ctrl-group:not(.mapbox-gl-draw_ctrl-draw-btn)",
+                        );
+                    if (navBar) {
+                        navBar.style.display = "flex";
+                        navBar.style.flexDirection = "row";
+                    }
+                }
             } else if (message.type === "add_reset_control") {
                 const resetControl = document.createElement("button");
                 resetControl.className =
@@ -1147,19 +1335,44 @@ if (HTMLWidgets.shinyMode) {
                 }
 
                 draw = new MapboxDraw(drawOptions);
-                map.addControl(draw, x.draw_control.position);
+                map.addControl(draw, message.position);
                 map.controls.push(draw);
 
                 // Add event listeners
                 map.on("draw.create", updateDrawnFeatures);
                 map.on("draw.delete", updateDrawnFeatures);
                 map.on("draw.update", updateDrawnFeatures);
+
+                if (message.orientation === "horizontal") {
+                    const drawBar = map
+                        .getContainer()
+                        .querySelector(".mapboxgl-ctrl-group");
+                    if (drawBar) {
+                        drawBar.style.display = "flex";
+                        drawBar.style.flexDirection = "row";
+                    }
+                }
             } else if (message.type === "get_drawn_features") {
-                const features = draw ? draw.getAll() : null;
-                Shiny.setInputValue(
-                    data.id + "_drawn_features",
-                    JSON.stringify(features),
-                );
+                if (
+                    map.controls &&
+                    map.controls.some(
+                        (control) => control instanceof MapboxDraw,
+                    )
+                ) {
+                    const drawControl = map.controls.find(
+                        (control) => control instanceof MapboxDraw,
+                    );
+                    const features = drawControl ? drawControl.getAll() : null;
+                    Shiny.setInputValue(
+                        data.id + "_drawn_features",
+                        JSON.stringify(features),
+                    );
+                } else {
+                    Shiny.setInputValue(
+                        data.id + "_drawn_features",
+                        JSON.stringify(null),
+                    );
+                }
             } else if (message.type === "clear_drawn_features") {
                 if (draw) {
                     draw.deleteAll();
@@ -1183,7 +1396,7 @@ if (HTMLWidgets.shinyMode) {
 
                     if (marker.popup) {
                         mapMarker.setPopup(
-                            new mapboxgl.Popup({ offset: 25 }).setText(
+                            new mapboxgl.Popup({ offset: 25 }).setHTML(
                                 marker.popup,
                             ),
                         );
@@ -1232,6 +1445,17 @@ if (HTMLWidgets.shinyMode) {
                 });
                 map.addControl(scaleControl, message.options.position);
                 map.controls.push(scaleControl);
+            } else if (message.type === "add_geolocate_control") {
+                const geolocate = new mapboxgl.GeolocateControl({
+                    positionOptions: message.options.positionOptions,
+                    trackUserLocation: message.options.trackUserLocation,
+                    showAccuracyCircle: message.options.showAccuracyCircle,
+                    showUserLocation: message.options.showUserLocation,
+                    showUserHeading: message.options.showUserHeading,
+                    fitBoundsOptions: message.options.fitBoundsOptions,
+                });
+                map.addControl(geolocate, message.options.position);
+                map.controls.push(geolocate);
             } else if (message.type === "add_geocoder_control") {
                 const geocoderOptions = {
                     accessToken: mapboxgl.accessToken,
@@ -1333,11 +1557,29 @@ if (HTMLWidgets.shinyMode) {
                     );
                 }
             } else if (message.type === "clear_legend") {
-                const existingLegend = document.querySelector(
-                    `#${data.id} .mapboxgl-legend`,
-                );
-                if (existingLegend) {
-                    existingLegend.remove();
+                if (message.ids && Array.isArray(message.ids)) {
+                    message.ids.forEach((id) => {
+                        const legend = document.querySelector(
+                            `#${data.id} div[id="${id}"]`,
+                        );
+                        if (legend) {
+                            legend.remove();
+                        }
+                    });
+                } else if (message.ids) {
+                    const legend = document.querySelector(
+                        `#${data.id} div[id="${message.ids}"]`,
+                    );
+                    if (legend) {
+                        legend.remove();
+                    }
+                } else {
+                    const existingLegends = document.querySelectorAll(
+                        `#${data.id} .mapboxgl-legend`,
+                    );
+                    existingLegends.forEach((legend) => {
+                        legend.remove();
+                    });
                 }
             } else if (message.type === "clear_controls") {
                 map.controls.forEach((control) => {
@@ -1350,6 +1592,50 @@ if (HTMLWidgets.shinyMode) {
                 );
                 if (layersControl) {
                     layersControl.remove();
+                }
+            } else if (message.type === "move_layer") {
+                if (map.getLayer(message.layer)) {
+                    if (message.before) {
+                        map.moveLayer(message.layer, message.before);
+                    } else {
+                        map.moveLayer(message.layer);
+                    }
+                } else {
+                    console.error("Layer not found:", message.layer);
+                }
+            } else if (message.type === "add_image") {
+                if (Array.isArray(message.images)) {
+                    message.images.forEach(function (imageInfo) {
+                        map.loadImage(imageInfo.url, function (error, image) {
+                            if (error) {
+                                console.error("Error loading image:", error);
+                                return;
+                            }
+                            if (!map.hasImage(imageInfo.id)) {
+                                map.addImage(
+                                    imageInfo.id,
+                                    image,
+                                    imageInfo.options,
+                                );
+                            }
+                        });
+                    });
+                } else if (message.url) {
+                    map.loadImage(message.url, function (error, image) {
+                        if (error) {
+                            console.error("Error loading image:", error);
+                            return;
+                        }
+                        if (!map.hasImage(message.imageId)) {
+                            map.addImage(
+                                message.imageId,
+                                image,
+                                message.options,
+                            );
+                        }
+                    });
+                } else {
+                    console.error("Invalid image data:", message);
                 }
             }
         }

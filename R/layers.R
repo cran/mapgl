@@ -165,6 +165,7 @@ add_layer <- function(map,
 #' @param fill_sort_key Sorts features in ascending order based on this value.
 #' @param fill_translate The geometry's offset. Values are `c(x, y)` where negatives indicate left and up.
 #' @param fill_translate_anchor Controls the frame of reference for `fill-translate`.
+#' @param fill_z_offset Specifies an uniform elevation in meters.
 #' @param visibility Whether this layer is displayed.
 #' @param slot An optional slot for layer order.
 #' @param min_zoom The minimum zoom level for the layer.
@@ -217,6 +218,7 @@ add_fill_layer <- function(map,
                            fill_sort_key = NULL,
                            fill_translate = NULL,
                            fill_translate_anchor = "map",
+                           fill_z_offset = NULL,
                            visibility = "visible",
                            slot = NULL,
                            min_zoom = NULL,
@@ -239,6 +241,7 @@ add_fill_layer <- function(map,
     if (!is.null(fill_pattern)) paint[["fill-pattern"]] <- fill_pattern
     if (!is.null(fill_translate)) paint[["fill-translate"]] <- fill_translate
     if (!is.null(fill_translate_anchor)) paint[["fill-translate-anchor"]] <- fill_translate_anchor
+    if (!is.null(fill_z_offset)) paint[["fill-z-offset"]] <- fill_z_offset
 
     if (!is.null(fill_sort_key)) layout[["fill-sort-key"]] <- fill_sort_key
     if (!is.null(visibility)) layout[["visibility"]] <- visibility
@@ -268,27 +271,53 @@ add_fill_layer <- function(map,
 #'
 #' @param map A map object created by the `mapboxgl` or `maplibre` functions.
 #' @param id A unique ID for the layer.
-#' @param source The ID of the source, alternatively an sf object (which will be converted to a GeoJSON source) or a named list that specifies `type` and `url` for a remote source.
+#' @param source The ID of the source, alternatively an sf object (which will be
+#'   converted to a GeoJSON source) or a named list that specifies `type` and
+#'   `url` for a remote source.
 #' @param source_layer The source layer (for vector sources).
-#' @param line_blur Amount to blur the line.
+#' @param line_blur Amount to blur the line, in pixels.
+#' @param line_cap The display of line endings. One of "butt", "round", "square".
 #' @param line_color The color with which the line will be drawn.
-#' @param line_dasharray Specifies the lengths of the alternating dashes and gaps that form the dash pattern.
-#' @param line_gap_width The width of the gap between a dashed line's individual dashes.
+#' @param line_dasharray Specifies the lengths of the alternating dashes and
+#'   gaps that form the dash pattern.
+#' @param line_emissive_strength Controls the intensity of light emitted on the
+#'   source features.
+#' @param line_gap_width Draws a line casing outside of a line's actual path.
+#'   Value indicates the width of the inner gap.
+#' @param line_gradient A gradient used to color a line feature at various
+#'   distances along its length.
+#' @param line_join The display of lines when joining.
+#' @param line_miter_limit Used to automatically convert miter joins to bevel
+#'   joins for sharp angles.
+#' @param line_occlusion_opacity Opacity multiplier of the line part that is
+#'   occluded by 3D objects.
 #' @param line_offset The line's offset.
 #' @param line_opacity The opacity at which the line will be drawn.
-#' @param line_pattern Name of image in sprite to use for drawing image fills.
+#' @param line_pattern Name of image in sprite to use for drawing image lines.
+#' @param line_round_limit Used to automatically convert round joins to miter
+#'   joins for shallow angles.
 #' @param line_sort_key Sorts features in ascending order based on this value.
-#' @param line_translate The geometry's offset. Values are `c(x, y)` where negatives indicate left and up.
+#' @param line_translate The geometry's offset. Values are `c(x, y)` where
+#'   negatives indicate left and up, respectively.
 #' @param line_translate_anchor Controls the frame of reference for `line-translate`.
+#' @param line_trim_color The color to be used for rendering the trimmed line section.
+#' @param line_trim_fade_range The fade range for the trim-start and trim-end points.
+#' @param line_trim_offset The line part between `c(trim_start, trim_end)` will be
+#'   painted using `line_trim_color`.
 #' @param line_width Stroke thickness.
+#' @param line_z_offset Vertical offset from ground, in meters.
 #' @param visibility Whether this layer is displayed.
-#' @param slot An optional slot for layer order. Only available when using the Mapbox Standard style.
+#' @param slot An optional slot for layer order.
 #' @param min_zoom The minimum zoom level for the layer.
 #' @param max_zoom The maximum zoom level for the layer.
-#' @param popup A column name containing information to display in a popup on click.  Columns containing HTML will be parsed.
-#' @param tooltip A column name containing information to display in a tooltip on hover. Columns containing HTML will be parsed.
-#' @param hover_options A named list of options for highlighting features in the layer on hover.
-#' @param before_id The name of the layer that this layer appears "before", allowing you to insert layers below other layers in your basemap (e.g. labels)
+#' @param popup A column name containing information to display in a popup on click.
+#'   Columns containing HTML will be parsed.
+#' @param tooltip A column name containing information to display in a tooltip on hover.
+#'   Columns containing HTML will be parsed.
+#' @param hover_options A named list of options for highlighting features in the
+#'   layer on hover.
+#' @param before_id The name of the layer that this layer appears "before",
+#'   allowing you to insert layers below other layers in your basemap (e.g. labels)
 #' @param filter An optional filter expression to subset features in the layer.
 #'
 #' @return The modified map object with the new line layer added.
@@ -315,16 +344,27 @@ add_line_layer <- function(map,
                            source,
                            source_layer = NULL,
                            line_blur = NULL,
+                           line_cap = NULL,
                            line_color = NULL,
                            line_dasharray = NULL,
+                           line_emissive_strength = NULL,
                            line_gap_width = NULL,
+                           line_gradient = NULL,
+                           line_join = NULL,
+                           line_miter_limit = NULL,
+                           line_occlusion_opacity = NULL,
                            line_offset = NULL,
                            line_opacity = NULL,
                            line_pattern = NULL,
+                           line_round_limit = NULL,
                            line_sort_key = NULL,
                            line_translate = NULL,
                            line_translate_anchor = "map",
+                           line_trim_color = NULL,
+                           line_trim_fade_range = NULL,
+                           line_trim_offset = NULL,
                            line_width = NULL,
+                           line_z_offset = NULL,
                            visibility = "visible",
                            slot = NULL,
                            min_zoom = NULL,
@@ -340,15 +380,26 @@ add_line_layer <- function(map,
     if (!is.null(line_blur)) paint[["line-blur"]] <- line_blur
     if (!is.null(line_color)) paint[["line-color"]] <- line_color
     if (!is.null(line_dasharray)) paint[["line-dasharray"]] <- line_dasharray
+    if (!is.null(line_emissive_strength)) paint[["line-emissive-strength"]] <- line_emissive_strength
     if (!is.null(line_gap_width)) paint[["line-gap-width"]] <- line_gap_width
+    if (!is.null(line_gradient)) paint[["line-gradient"]] <- line_gradient
+    if (!is.null(line_occlusion_opacity)) paint[["line-occlusion-opacity"]] <- line_occlusion_opacity
     if (!is.null(line_offset)) paint[["line-offset"]] <- line_offset
     if (!is.null(line_opacity)) paint[["line-opacity"]] <- line_opacity
     if (!is.null(line_pattern)) paint[["line-pattern"]] <- line_pattern
     if (!is.null(line_translate)) paint[["line-translate"]] <- line_translate
     if (!is.null(line_translate_anchor)) paint[["line-translate-anchor"]] <- line_translate_anchor
+    if (!is.null(line_trim_color)) paint[["line-trim-color"]] <- line_trim_color
+    if (!is.null(line_trim_fade_range)) paint[["line-trim-fade-range"]] <- line_trim_fade_range
+    if (!is.null(line_trim_offset)) paint[["line-trim-offset"]] <- line_trim_offset
     if (!is.null(line_width)) paint[["line-width"]] <- line_width
 
+    if (!is.null(line_cap)) layout[["line-cap"]] <- line_cap
+    if (!is.null(line_join)) layout[["line-join"]] <- line_join
+    if (!is.null(line_miter_limit)) layout[["line-miter-limit"]] <- line_miter_limit
+    if (!is.null(line_round_limit)) layout[["line-round-limit"]] <- line_round_limit
     if (!is.null(line_sort_key)) layout[["line-sort-key"]] <- line_sort_key
+    if (!is.null(line_z_offset)) layout[["line-z-offset"]] <- line_z_offset
     if (!is.null(visibility)) layout[["visibility"]] <- visibility
 
     map <- add_layer(
@@ -577,6 +628,7 @@ add_fill_extrusion_layer <- function(map,
 #' @param circle_stroke_color The color of the circle's stroke.
 #' @param circle_stroke_opacity The opacity of the circle's stroke.
 #' @param circle_stroke_width The width of the circle's stroke.
+#' @param text_color The color to use for labels on the cluster circles.
 #'
 #' @return A list of cluster options.
 #' @export
@@ -602,7 +654,8 @@ cluster_options <- function(max_zoom = 14,
                             circle_opacity = NULL,
                             circle_stroke_color = NULL,
                             circle_stroke_opacity = NULL,
-                            circle_stroke_width = NULL) {
+                            circle_stroke_width = NULL,
+                            text_color = "black") {
     list(
         max_zoom = max_zoom,
         cluster_radius = cluster_radius,
@@ -613,7 +666,8 @@ cluster_options <- function(max_zoom = 14,
         circle_opacity = circle_opacity,
         circle_stroke_color = circle_stroke_color,
         circle_stroke_opacity = circle_stroke_opacity,
-        circle_stroke_width = circle_stroke_width
+        circle_stroke_width = circle_stroke_width,
+        text_color = text_color
     )
 }
 
@@ -813,7 +867,8 @@ add_circle_layer <- function(map,
             source = id,
             filter = c("has", "point_count"),
             text_field = get_column("point_count_abbreviated"),
-            text_size = 12
+            text_size = 12,
+            text_color = cluster_options$text_color
         )
 
         # Add unclustered points
@@ -957,7 +1012,9 @@ add_raster_layer <- function(map,
 #' @param icon_halo_color The color of the icon's halo.
 #' @param icon_halo_width The width of the icon's halo.
 #' @param icon_ignore_placement If TRUE, the icon will be visible even if it collides with other symbols.
-#' @param icon_image Name of image in sprite to use for drawing an image background. To use values in a column of your input dataset, use `c('get', 'YOUR_ICON_COLUMN_NAME')`.
+#' @param icon_image Name of image in sprite to use for drawing an image background.
+#'        To use values in a column of your input dataset, use `get_column('YOUR_ICON_COLUMN_NAME')`.
+#'        Images can also be loaded with the `add_image()` function which should precede the `add_symbol_layer()` function.
 #' @param icon_image_cross_fade The cross-fade parameter for the icon image.
 #' @param icon_keep_upright If TRUE, the icon will be kept upright.
 #' @param icon_offset Offset distance of icon.
@@ -967,7 +1024,10 @@ add_raster_layer <- function(map,
 #' @param icon_pitch_alignment Alignment of the icon with respect to the pitch of the map.
 #' @param icon_rotate Rotates the icon clockwise.
 #' @param icon_rotation_alignment Alignment of the icon with respect to the map.
-#' @param icon_size The size of the icon.
+#' @param icon_size The size of the icon, specified relative to the original size
+#'        of the image. For example, a value of 5 would make the icon
+#'        5 times larger than the original size, whereas a value of 0.5 would
+#'        make the icon half the size of the original.
 #' @param icon_text_fit Scales the text to fit the icon.
 #' @param icon_text_fit_padding Padding for text fitting the icon.
 #' @param icon_translate The offset distance of the icon.
@@ -1262,7 +1322,7 @@ add_symbol_layer <- function(map,
 
         for (prop in names(optional_paint)) {
             if (!is.null(optional_paint[[prop]])) {
-                map$x$calls[[length(map$x$calls)]]$args[[4]]$paint[[prop]] <- optional_paint[[prop]]
+                map$x$layers[[length(map$x$layers)]]$paint[[prop]] <- optional_paint[[prop]]
             }
         }
 
@@ -1273,7 +1333,8 @@ add_symbol_layer <- function(map,
             source = id,
             filter = c("has", "point_count"),
             text_field = get_column("point_count_abbreviated"),
-            text_size = 12
+            text_size = 12,
+            text_color = cluster_options$text_color
         )
 
         # Add unclustered symbols
