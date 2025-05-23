@@ -17,7 +17,7 @@ add_h3j_source(map, id, url)
 Add a hexagon source from the H3 geospatial indexing system.
 }
 \examples{
-\dontrun{
+\dontshow{if (interactive()) (if (getRversion() >= "3.4") withAutoprint else force)(\{ # examplesIf}
 url = "https://inspide.github.io/h3j-h3t/examples/h3j/sample.h3j"
 maplibre(center=c(-3.704, 40.417), zoom=15, pitch=30) |>
   add_h3j_source("h3j_testsource",
@@ -42,7 +42,7 @@ maplibre(center=c(-3.704, 40.417), zoom=15, pitch=30) |>
     ),
     fill_extrusion_opacity = 0.7
   )
-}
+\dontshow{\}) # examplesIf}
 }
 \references{
 https://h3geo.org, https://github.com/INSPIDE/h3j-h3t

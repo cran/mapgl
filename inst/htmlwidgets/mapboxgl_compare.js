@@ -87,6 +87,17 @@ HTMLWidgets.widget({
                             orientation: x.orientation,
                         },
                     );
+                    
+                    // Apply custom swiper color if provided
+                    if (x.swiper_color) {
+                        const swiperSelector = x.orientation === "vertical" ? 
+                            ".mapboxgl-compare .compare-swiper-vertical" : 
+                            ".mapboxgl-compare .compare-swiper-horizontal";
+                        
+                        const styleEl = document.createElement('style');
+                        styleEl.innerHTML = `${swiperSelector} { background-color: ${x.swiper_color}; }`;
+                        document.head.appendChild(styleEl);
+                    }
                 } else {
                     // For sync mode, we directly leverage the sync-move module's approach
 
@@ -240,19 +251,51 @@ HTMLWidgets.widget({
 
                                     // Add popups or tooltips if provided
                                     if (message.layer.popup) {
+                                        // Initialize popup tracking if it doesn't exist
+                                        if (!window._mapboxPopups) {
+                                            window._mapboxPopups = {};
+                                        }
+                                        
+                                        // Create click handler for this layer
+                                        const clickHandler = function (e) {
+                                            const description =
+                                                e.features[0].properties[
+                                                    message.layer.popup
+                                                ];
+                                            
+                                            // Remove any existing popup for this layer
+                                            if (window._mapboxPopups[message.layer.id]) {
+                                                window._mapboxPopups[message.layer.id].remove();
+                                            }
+                                            
+                                            // Create and show the popup
+                                            const popup = new mapboxgl.Popup()
+                                                .setLngLat(e.lngLat)
+                                                .setHTML(description)
+                                                .addTo(map);
+                                                
+                                            // Store reference to this popup
+                                            window._mapboxPopups[message.layer.id] = popup;
+                                            
+                                            // Remove reference when popup is closed
+                                            popup.on('close', function() {
+                                                if (window._mapboxPopups[message.layer.id] === popup) {
+                                                    delete window._mapboxPopups[message.layer.id];
+                                                }
+                                            });
+                                        };
+                                        
+                                        // Store these handler references so we can remove them later if needed
+                                        if (!window._mapboxClickHandlers) {
+                                            window._mapboxClickHandlers = {};
+                                        }
+                                        window._mapboxClickHandlers[message.layer.id] = clickHandler;
+                                        
+                                        // Add the click handler
                                         map.on(
                                             "click",
                                             message.layer.id,
-                                            function (e) {
-                                                const description =
-                                                    e.features[0].properties[
-                                                        message.layer.popup
-                                                    ];
-                                                new mapboxgl.Popup()
-                                                    .setLngLat(e.lngLat)
-                                                    .setHTML(description)
-                                                    .addTo(map);
-                                            },
+                                            clickHandler
                                         );
 
                                         // Change cursor to pointer when hovering over the layer
@@ -480,9 +523,15 @@ HTMLWidgets.widget({
                                     window._activeTooltip.remove();
                                     delete window._activeTooltip;
                                 }
+                                
+                                // If there's an active popup for this layer, remove it
+                                if (window._mapboxPopups && window._mapboxPopups[message.layer_id]) {
+                                    window._mapboxPopups[message.layer_id].remove();
+                                    delete window._mapboxPopups[message.layer_id];
+                                }
 
                                 if (map.getLayer(message.layer_id)) {
-                                    // Check if we have stored handlers for this layer
+                                    // Remove tooltip handlers
                                     if (
                                         window._mapboxHandlers &&
                                         window._mapboxHandlers[message.layer_id]
@@ -510,6 +559,21 @@ HTMLWidgets.widget({
                                             message.layer_id
                                         ];
                                     }
+                                    
+                                    // Remove click handlers for popups
+                                    if (
+                                        window._mapboxClickHandlers &&
+                                        window._mapboxClickHandlers[message.layer_id]
+                                    ) {
+                                        map.off(
+                                            "click",
+                                            message.layer_id,
+                                            window._mapboxClickHandlers[message.layer_id]
+                                        );
+                                        delete window._mapboxClickHandlers[message.layer_id];
+                                    }
+                                    
+                                    // Remove the layer
                                     map.removeLayer(message.layer_id);
                                 }
                                 if (map.getSource(message.layer_id)) {
@@ -586,11 +650,16 @@ HTMLWidgets.widget({
                                     existingLegends.forEach((legend) =>
                                         legend.remove(),
                                     );
+                                    
+                                    // Clean up any existing legend styles that might have been added
+                                    const legendStyles = document.querySelectorAll(`style[data-mapgl-legend-css="${data.id}"]`);
+                                    legendStyles.forEach((style) => style.remove());
                                 }
 
                                 const legendCss =
                                     document.createElement("style");
                                 legendCss.innerHTML = message.legend_css;
+                                legendCss.setAttribute('data-mapgl-legend-css', data.id); // Mark this style for later cleanup
                                 document.head.appendChild(legendCss);
 
                                 const legend = document.createElement("div");
@@ -613,9 +682,99 @@ HTMLWidgets.widget({
                                 const pitch = map.getPitch();
 
                                 // Apply the new style
-                                map.setStyle(message.style, {
-                                    diff: message.diff,
-                                });
+                                // Default preserve_layers to true if not specified
+                                const preserveLayers = message.preserve_layers !== false;
+                                
+                                // If we should preserve layers and sources
+                                if (preserveLayers) {
+                                    // Store the current style before changing it
+                                    const currentStyle = map.getStyle();
+                                    const userSourceIds = [];
+                                    const userLayers = [];
+                                    
+                                    // Identify user-added sources (those not in the original style)
+                                    // We'll assume any source that's not "composite", "mapbox", or starts with "mapbox-" is user-added
+                                    for (const sourceId in currentStyle.sources) {
+                                        if (
+                                            sourceId !== "composite" && 
+                                            sourceId !== "mapbox" && 
+                                            !sourceId.startsWith("mapbox-")
+                                        ) {
+                                            userSourceIds.push(sourceId);
+                                            const source = currentStyle.sources[sourceId];
+                                            // Store layer-specific handler references
+                                            if (window._mapboxHandlers) {
+                                                const handlers = window._mapboxHandlers;
+                                                for (const layerId in handlers) {
+                                                    // Find layers associated with this source
+                                                    const layer = currentStyle.layers.find(l => l.id === layerId);
+                                                    if (layer && layer.source === sourceId) {
+                                                        layer._handlers = handlers[layerId];
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Identify layers using user-added sources
+                                    currentStyle.layers.forEach(function(layer) {
+                                        if (userSourceIds.includes(layer.source)) {
+                                            userLayers.push(layer);
+                                        }
+                                    });
+                                    
+                                    // Set up event listener to re-add sources and layers after style loads
+                                    const onStyleLoad = function() {
+                                        // Re-add user sources
+                                        userSourceIds.forEach(function(sourceId) {
+                                            if (!map.getSource(sourceId)) {
+                                                const source = currentStyle.sources[sourceId];
+                                                map.addSource(sourceId, source);
+                                            }
+                                        });
+                                        
+                                        // Re-add user layers
+                                        userLayers.forEach(function(layer) {
+                                            if (!map.getLayer(layer.id)) {
+                                                map.addLayer(layer);
+                                                
+                                                // Re-add event handlers for tooltips and hover effects
+                                                if (layer._handlers) {
+                                                    const handlers = layer._handlers;
+                                                    
+                                                    if (handlers.mousemove) {
+                                                        map.on("mousemove", layer.id, handlers.mousemove);
+                                                    }
+                                                    
+                                                    if (handlers.mouseleave) {
+                                                        map.on("mouseleave", layer.id, handlers.mouseleave);
+                                                    }
+                                                }
+                                                
+                                                // Recreate hover states if needed
+                                                if (layer.paint) {
+                                                    for (const key in layer.paint) {
+                                                        const value = layer.paint[key];
+                                                        if (Array.isArray(value) && value[0] === "case" && 
+                                                            Array.isArray(value[1]) && value[1][0] === "boolean" && 
+                                                            value[1][1][0] === "feature-state" && value[1][1][1] === "hover") {
+                                                            // This is a hover-enabled paint property
+                                                            map.setPaintProperty(layer.id, key, value);
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        });
+                                        
+                                        // Remove this listener to avoid adding the same layers multiple times
+                                        map.off('style.load', onStyleLoad);
+                                    };
+                                    
+                                    map.on('style.load', onStyleLoad);
+                                }
+                                
+                                // Change the style
+                                map.setStyle(message.style, { diff: message.diff });
 
                                 if (message.config) {
                                     Object.keys(message.config).forEach(
@@ -1147,6 +1306,18 @@ HTMLWidgets.widget({
                                 });
 
                                 map.addControl(minimap, message.position);
+                            } else if (message.type === "set_rain") {
+                                if (message.rain) {
+                                    map.setRain(message.rain);
+                                } else {
+                                    map.setRain(null);
+                                }
+                            } else if (message.type === "set_snow") {
+                                if (message.snow) {
+                                    map.setSnow(message.snow);
+                                } else {
+                                    map.setSnow(null);
+                                }
                             } else if (message.type === "set_projection") {
                                 map.setProjection(message.projection);
                             } else if (message.type === "set_source") {
@@ -1348,17 +1519,7 @@ HTMLWidgets.widget({
                             const markerId = marker.id;
                             if (markerId) {
                                 const lngLat = mapMarker.getLngLat();
-                                Shiny.setInputValue(
-                                    el.id + "_marker_" + markerId,
-                                    {
-                                        id: markerId,
-                                        lng: lngLat.lng,
-                                        lat: lngLat.lat,
-                                    },
-                                );
-
-                                mapMarker.on("dragend", function () {
-                                    const lngLat = mapMarker.getLngLat();
+                                if (HTMLWidgets.shinyMode) {
                                     Shiny.setInputValue(
                                         el.id + "_marker_" + markerId,
                                         {
@@ -1367,6 +1528,20 @@ HTMLWidgets.widget({
                                             lat: lngLat.lat,
                                         },
                                     );
+                                }
+
+                                mapMarker.on("dragend", function () {
+                                    const lngLat = mapMarker.getLngLat();
+                                    if (HTMLWidgets.shinyMode) {
+                                        Shiny.setInputValue(
+                                            el.id + "_marker_" + markerId,
+                                            {
+                                                id: markerId,
+                                                lng: lngLat.lng,
+                                                lat: lngLat.lat,
+                                            },
+                                        );
+                                    }
                                 });
                             }
 
@@ -1639,6 +1814,16 @@ HTMLWidgets.widget({
                     if (mapData.fog) {
                         map.setFog(mapData.fog);
                     }
+                    
+                    // Set rain effect if provided
+                    if (mapData.rain) {
+                        map.setRain(mapData.rain);
+                    }
+                    
+                    // Set snow effect if provided
+                    if (mapData.snow) {
+                        map.setSnow(mapData.snow);
+                    }
 
                     if (mapData.fitBounds) {
                         map.fitBounds(
@@ -1687,20 +1872,23 @@ HTMLWidgets.widget({
                         );
                     }
 
-                    const existingLegend =
-                        document.getElementById("mapboxgl-legend");
-                    if (existingLegend) {
-                        existingLegend.remove();
-                    }
+                    // Remove existing legends
+                    const existingLegends = document.querySelectorAll(".mapboxgl-legend");
+                    existingLegends.forEach(legend => legend.remove());
+                    
+                    // Clean up any legend styles that might have been added
+                    const legendStyles = document.querySelectorAll('style[data-mapgl-legend-css]');
+                    legendStyles.forEach(style => style.remove());
 
                     if (mapData.legend_html && mapData.legend_css) {
                         const legendCss = document.createElement("style");
                         legendCss.innerHTML = mapData.legend_css;
+                        legendCss.setAttribute('data-mapgl-legend-css', el.id); // Mark this style for later cleanup
                         document.head.appendChild(legendCss);
 
                         const legend = document.createElement("div");
                         legend.innerHTML = mapData.legend_html;
-                        // legend.classList.add("mapboxgl-legend");
+                        legend.classList.add("mapboxgl-legend");
                         el.appendChild(legend);
                     }
 
