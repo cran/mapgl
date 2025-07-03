@@ -454,6 +454,18 @@ HTMLWidgets.widget({
                                         }
                                     });
                                     map.addSource(message.source.id, sourceConfig);
+                                } else {
+                                    // Handle custom source types
+                                    const sourceConfig = { type: message.source.type };
+                                    
+                                    // Copy all properties except id
+                                    Object.keys(message.source).forEach(function(key) {
+                                        if (key !== "id") {
+                                            sourceConfig[key] = message.source[key];
+                                        }
+                                    });
+                                    
+                                    map.addSource(message.source.id, sourceConfig);
                                 }
                             } else if (message.type === "add_layer") {
                                 try {
@@ -1840,17 +1852,17 @@ HTMLWidgets.widget({
                                 // Set the position correctly
                                 const position = message.position || "top-left";
                                 if (position === "top-left") {
-                                    layersControl.style.top = "10px";
-                                    layersControl.style.left = "10px";
+                                    layersControl.style.top = (message.margin_top || 10) + "px";
+                                    layersControl.style.left = (message.margin_left || 10) + "px";
                                 } else if (position === "top-right") {
-                                    layersControl.style.top = "10px";
-                                    layersControl.style.right = "10px";
+                                    layersControl.style.top = (message.margin_top || 10) + "px";
+                                    layersControl.style.right = (message.margin_right || 10) + "px";
                                 } else if (position === "bottom-left") {
-                                    layersControl.style.bottom = "30px";
-                                    layersControl.style.left = "10px";
+                                    layersControl.style.bottom = (message.margin_bottom || 30) + "px";
+                                    layersControl.style.left = (message.margin_left || 10) + "px";
                                 } else if (position === "bottom-right") {
-                                    layersControl.style.bottom = "40px";
-                                    layersControl.style.right = "10px";
+                                    layersControl.style.bottom = (message.margin_bottom || 40) + "px";
+                                    layersControl.style.right = (message.margin_right || 10) + "px";
                                 }
 
                                 // Apply custom colors if provided
@@ -2218,6 +2230,52 @@ HTMLWidgets.widget({
                                         }
                                     });
                                 }
+                            } else if (message.type === "query_rendered_features") {
+                                // Query rendered features
+                                let queryOptions = {};
+                                if (message.layers) {
+                                    // Ensure layers is always an array
+                                    queryOptions.layers = Array.isArray(message.layers)
+                                        ? message.layers
+                                        : [message.layers];
+                                }
+                                if (message.filter) queryOptions.filter = message.filter;
+
+                                let features;
+                                if (message.geometry) {
+                                    features = map.queryRenderedFeatures(message.geometry, queryOptions);
+                                } else {
+                                    // No geometry specified - query entire viewport
+                                    features = map.queryRenderedFeatures(queryOptions);
+                                }
+
+                                // Deduplicate features by id or by properties if no id
+                                const uniqueFeatures = new Map();
+                                features.forEach(function (feature) {
+                                    let key;
+                                    if (feature.id !== undefined && feature.id !== null) {
+                                        key = feature.id;
+                                    } else {
+                                        // Create a key from properties if no id available
+                                        key = JSON.stringify(feature.properties);
+                                    }
+
+                                    if (!uniqueFeatures.has(key)) {
+                                        uniqueFeatures.set(key, feature);
+                                    }
+                                });
+
+                                // Convert to GeoJSON FeatureCollection
+                                const deduplicatedFeatures = Array.from(uniqueFeatures.values());
+                                const featureCollection = {
+                                    type: "FeatureCollection",
+                                    features: deduplicatedFeatures,
+                                };
+
+                                Shiny.setInputValue(
+                                    data.id + "_queried_features",
+                                    JSON.stringify(featureCollection)
+                                );
                             }
                         },
                     );
@@ -2265,7 +2323,12 @@ HTMLWidgets.widget({
                             if (window.Shiny) {
                                 // Feature hover events
                                 if (mapConfig.hover_events.features) {
-                                    const features = map.queryRenderedFeatures(e.point);
+                                    const options = mapConfig.hover_events.layer_id
+                                        ? { layers: Array.isArray(mapConfig.hover_events.layer_id) 
+                                            ? mapConfig.hover_events.layer_id 
+                                            : mapConfig.hover_events.layer_id.split(',').map(id => id.trim()) }
+                                        : undefined;
+                                    const features = map.queryRenderedFeatures(e.point, options);
 
                                     if(features.length > 0) {
                                         const feature = features[0];
@@ -3411,17 +3474,17 @@ HTMLWidgets.widget({
                         const position =
                             mapData.layers_control.position || "top-left";
                         if (position === "top-left") {
-                            layersControl.style.top = "10px";
-                            layersControl.style.left = "10px";
+                            layersControl.style.top = (mapData.layers_control.margin_top || 10) + "px";
+                            layersControl.style.left = (mapData.layers_control.margin_left || 10) + "px";
                         } else if (position === "top-right") {
-                            layersControl.style.top = "10px";
-                            layersControl.style.right = "10px";
+                            layersControl.style.top = (mapData.layers_control.margin_top || 10) + "px";
+                            layersControl.style.right = (mapData.layers_control.margin_right || 10) + "px";
                         } else if (position === "bottom-left") {
-                            layersControl.style.bottom = "30px";
-                            layersControl.style.left = "10px";
+                            layersControl.style.bottom = (mapData.layers_control.margin_bottom || 30) + "px";
+                            layersControl.style.left = (mapData.layers_control.margin_left || 10) + "px";
                         } else if (position === "bottom-right") {
-                            layersControl.style.bottom = "40px";
-                            layersControl.style.right = "10px";
+                            layersControl.style.bottom = (mapData.layers_control.margin_bottom || 40) + "px";
+                            layersControl.style.right = (mapData.layers_control.margin_right || 10) + "px";
                         }
 
                         el.appendChild(layersControl);

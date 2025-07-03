@@ -292,6 +292,22 @@ HTMLWidgets.widget({
           return;
         }
 
+        // Register PMTiles source type if available
+        if (
+          typeof MapboxPmTilesSource !== "undefined" &&
+          typeof pmtiles !== "undefined"
+        ) {
+          try {
+            mapboxgl.Style.setSourceType(
+              PMTILES_SOURCE_TYPE,
+              MapboxPmTilesSource,
+            );
+            console.log("PMTiles support enabled for Mapbox GL JS");
+          } catch (e) {
+            console.warn("Failed to register PMTiles source type:", e);
+          }
+        }
+
         mapboxgl.accessToken = x.access_token;
 
         map = new mapboxgl.Map({
@@ -477,6 +493,18 @@ HTMLWidgets.widget({
                   urls: source.urls,
                   coordinates: source.coordinates,
                 });
+              } else {
+                // Handle custom source types (like pmtile-source)
+                const sourceOptions = { type: source.type };
+
+                // Copy all properties except id
+                for (const [key, value] of Object.entries(source)) {
+                  if (key !== "id") {
+                    sourceOptions[key] = value;
+                  }
+                }
+
+                map.addSource(source.id, sourceOptions);
               }
             });
           }
@@ -1128,17 +1156,17 @@ HTMLWidgets.widget({
             // Set the position correctly - fix position bug by using correct CSS positioning
             const position = x.layers_control.position || "top-left";
             if (position === "top-left") {
-              layersControl.style.top = "10px";
-              layersControl.style.left = "10px";
+              layersControl.style.top = (x.layers_control.margin_top || 10) + "px";
+              layersControl.style.left = (x.layers_control.margin_left || 10) + "px";
             } else if (position === "top-right") {
-              layersControl.style.top = "10px";
-              layersControl.style.right = "10px";
+              layersControl.style.top = (x.layers_control.margin_top || 10) + "px";
+              layersControl.style.right = (x.layers_control.margin_right || 10) + "px";
             } else if (position === "bottom-left") {
-              layersControl.style.bottom = "30px";
-              layersControl.style.left = "10px";
+              layersControl.style.bottom = (x.layers_control.margin_bottom || 30) + "px";
+              layersControl.style.left = (x.layers_control.margin_left || 10) + "px";
             } else if (position === "bottom-right") {
-              layersControl.style.bottom = "40px";
-              layersControl.style.right = "10px";
+              layersControl.style.bottom = (x.layers_control.margin_bottom || 40) + "px";
+              layersControl.style.right = (x.layers_control.margin_right || 10) + "px";
             }
 
             // Apply custom colors if provided
@@ -1343,38 +1371,44 @@ HTMLWidgets.widget({
 
             // add hover listener for shinyMode if enabled
             if (x.hover_events && x.hover_events.enabled) {
-                map.on("mousemove", function (e) {
-                  // Feature hover events
-                  if (x.hover_events.features) {
-                    const features = map.queryRenderedFeatures(e.point);
+              map.on("mousemove", function (e) {
+                // Feature hover events
+                if (x.hover_events.features) {
+                  const options = x.hover_events.layer_id
+                    ? {
+                        layers: Array.isArray(x.hover_events.layer_id)
+                          ? x.hover_events.layer_id
+                          : x.hover_events.layer_id
+                              .split(",")
+                              .map((id) => id.trim()),
+                      }
+                    : undefined;
+                  const features = map.queryRenderedFeatures(e.point, options);
 
-                    if(features.length > 0) {
-                      const feature = features[0];
-                      Shiny.onInputChange(el.id + "_feature_hover", {
-                        id: feature.id,
-                              properties: feature.properties,
-                              layer: feature.layer.id,
-                              lng: e.lngLat.lng,
-                              lat: e.lngLat.lat,
-                              time: new Date(),
-                          });
-                    } else {
-                      Shiny.onInputChange(
-                        el.id + "_feature_hover",
-                        null,
-                    );
+                  if (features.length > 0) {
+                    const feature = features[0];
+                    Shiny.onInputChange(el.id + "_feature_hover", {
+                      id: feature.id,
+                      properties: feature.properties,
+                      layer: feature.layer.id,
+                      lng: e.lngLat.lng,
+                      lat: e.lngLat.lat,
+                      time: new Date(),
+                    });
+                  } else {
+                    Shiny.onInputChange(el.id + "_feature_hover", null);
                   }
-                  }
+                }
 
-                  // Coordinate hover events  
-                  if (x.hover_events.coordinates) {
-                    Shiny.onInputChange(el.id + "_hover", {
-                        lng: e.lngLat.lng,
-                        lat: e.lngLat.lat,
-                        time: new Date(),
-                      });
-                  }
-                });
+                // Coordinate hover events
+                if (x.hover_events.coordinates) {
+                  Shiny.onInputChange(el.id + "_hover", {
+                    lng: e.lngLat.lng,
+                    lat: e.lngLat.lat,
+                    time: new Date(),
+                  });
+                }
+              });
             }
           }
 
@@ -1580,6 +1614,18 @@ if (HTMLWidgets.shinyMode) {
               sourceConfig[key] = message.source[key];
             }
           });
+          map.addSource(message.source.id, sourceConfig);
+        } else {
+          // Handle custom source types (like pmtile-source)
+          const sourceConfig = { type: message.source.type };
+
+          // Copy all properties except id
+          Object.keys(message.source).forEach(function (key) {
+            if (key !== "id") {
+              sourceConfig[key] = message.source[key];
+            }
+          });
+
           map.addSource(message.source.id, sourceConfig);
         }
       } else if (message.type === "add_layer") {
@@ -1846,6 +1892,52 @@ if (HTMLWidgets.shinyMode) {
           layerState.paintProperties[layerId] = {};
         }
         layerState.paintProperties[layerId][propertyName] = newValue;
+      } else if (message.type === "query_rendered_features") {
+        // Query rendered features
+        let queryOptions = {};
+        if (message.layers) {
+          // Ensure layers is always an array
+          queryOptions.layers = Array.isArray(message.layers)
+            ? message.layers
+            : [message.layers];
+        }
+        if (message.filter) queryOptions.filter = message.filter;
+
+        let features;
+        if (message.geometry) {
+          features = map.queryRenderedFeatures(message.geometry, queryOptions);
+        } else {
+          // No geometry specified - query entire viewport
+          features = map.queryRenderedFeatures(queryOptions);
+        }
+
+        // Deduplicate features by id or by properties if no id
+        const uniqueFeatures = new Map();
+        features.forEach(function (feature) {
+          let key;
+          if (feature.id !== undefined && feature.id !== null) {
+            key = feature.id;
+          } else {
+            // Create a key from properties if no id available
+            key = JSON.stringify(feature.properties);
+          }
+
+          if (!uniqueFeatures.has(key)) {
+            uniqueFeatures.set(key, feature);
+          }
+        });
+
+        // Convert to GeoJSON FeatureCollection
+        const deduplicatedFeatures = Array.from(uniqueFeatures.values());
+        const featureCollection = {
+          type: "FeatureCollection",
+          features: deduplicatedFeatures,
+        };
+
+        Shiny.setInputValue(
+          data.id + "_queried_features",
+          JSON.stringify(featureCollection),
+        );
       } else if (message.type === "add_legend") {
         // Extract legend ID from HTML to track it
         const legendIdMatch = message.html.match(/id="([^"]+)"/);
@@ -2494,17 +2586,17 @@ if (HTMLWidgets.shinyMode) {
         // Set the position correctly
         const position = message.position || "top-left";
         if (position === "top-left") {
-          layersControl.style.top = "10px";
-          layersControl.style.left = "10px";
+          layersControl.style.top = (message.margin_top || 10) + "px";
+          layersControl.style.left = (message.margin_left || 10) + "px";
         } else if (position === "top-right") {
-          layersControl.style.top = "10px";
-          layersControl.style.right = "10px";
+          layersControl.style.top = (message.margin_top || 10) + "px";
+          layersControl.style.right = (message.margin_right || 10) + "px";
         } else if (position === "bottom-left") {
-          layersControl.style.bottom = "30px";
-          layersControl.style.left = "10px";
+          layersControl.style.bottom = (message.margin_bottom || 30) + "px";
+          layersControl.style.left = (message.margin_left || 10) + "px";
         } else if (position === "bottom-right") {
-          layersControl.style.bottom = "40px";
-          layersControl.style.right = "10px";
+          layersControl.style.bottom = (message.margin_bottom || 40) + "px";
+          layersControl.style.right = (message.margin_right || 10) + "px";
         }
 
         // Apply custom colors if provided
