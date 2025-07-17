@@ -1,7 +1,7 @@
 Package: mapgl
 Title: Interactive Maps with 'Mapbox GL JS' and 'MapLibre GL JS'
-Version: 0.3.1
-Date: 2025-07-03
+Version: 0.3.2
+Date: 2025-07-17
 Authors@R: 
     person(given = "Kyle", family = "Walker", email = "kyle@walker-data.com", role = c("aut", "cre"))
 Description: Provides an interface to the 'Mapbox GL JS' (<https://docs.mapbox.com/mapbox-gl-js/guides>)
@@ -19,8 +19,8 @@ Imports: htmlwidgets, geojsonsf, sf, rlang, htmltools, grDevices,
         base64enc, terra, classInt, shiny, viridisLite
 Suggests: mapboxapi, usethis, leaflet
 NeedsCompilation: no
-Packaged: 2025-07-03 17:18:46 UTC; kylewalker
+Packaged: 2025-07-17 21:17:35 UTC; kylewalker
 Author: Kyle Walker [aut, cre]
 Maintainer: Kyle Walker <kyle@walker-data.com>
 Repository: CRAN
-Date/Publication: 2025-07-03 17:40:02 UTC
+Date/Publication: 2025-07-17 21:30:02 UTC

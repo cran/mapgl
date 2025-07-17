@@ -472,6 +472,8 @@ add_scale_control <- function(
 #' @param active_color Color for active (selected) features. Default is "#fbb03b" (orange).
 #' @param vertex_radius Radius of vertex points in pixels. Default is 5.
 #' @param line_width Width of lines in pixels. Default is 2.
+#' @param download_button Logical, whether to add a download button to export drawn features as GeoJSON. Default is FALSE.
+#' @param download_filename Base filename for downloaded GeoJSON (without extension). Default is "drawn-features".
 #' @param ... Additional named arguments. See \url{https://github.com/mapbox/mapbox-gl-draw/blob/main/docs/API.md#options} for a list of options.
 #'
 #' @return The modified map object with the draw control added.
@@ -521,6 +523,8 @@ add_draw_control <- function(
   active_color = "#fbb03b",
   vertex_radius = 5,
   line_width = 2,
+  download_button = FALSE,
+  download_filename = "drawn-features",
   ...
 ) {
   # if (inherits(map, "maplibregl") || inherits(map, "maplibre_proxy")) {
@@ -548,6 +552,8 @@ add_draw_control <- function(
     orientation = orientation,
     options = options,
     source = draw_source,
+    download_button = download_button,
+    download_filename = download_filename,
     styling = list(
       point_color = point_color,
       line_color = line_color,
@@ -582,6 +588,8 @@ add_draw_control <- function(
             simplify_freehand = simplify_freehand,
             orientation = orientation,
             source = draw_source,
+            download_button = download_button,
+            download_filename = download_filename,
             styling = list(
               point_color = point_color,
               line_color = line_color,
@@ -614,6 +622,8 @@ add_draw_control <- function(
             simplify_freehand = simplify_freehand,
             orientation = orientation,
             source = draw_source,
+            download_button = download_button,
+            download_filename = download_filename,
             styling = list(
               point_color = point_color,
               line_color = line_color,
@@ -963,6 +973,8 @@ clear_drawn_features <- function(map) {
 #' @param position The position of the control. Can be one of "top-left", "top-right", "bottom-left", or "bottom-right". Default is "top-right".
 #' @param placeholder A string to use as placeholder text for the search bar. Default is "Search".
 #' @param collapsed Whether the control should be collapsed until hovered or clicked. Default is FALSE.
+#' @param provider The geocoding provider to use for MapLibre maps. Either "osm" for OpenStreetMap/Nominatim or "maptiler" for MapTiler geocoding. If NULL (default), MapLibre maps will use "osm". Mapbox maps will always use the Mapbox geocoder, regardless of this parameter.
+#' @param maptiler_api_key Your MapTiler API key (required when provider is "maptiler" for MapLibre maps). Can also be set with `MAPTILER_API_KEY` environment variable. Mapbox maps will always use the Mapbox API key set at the map level.
 #' @param ... Additional parameters to pass to the Geocoder.
 #'
 #' @return The modified map object with the geocoder control added.
@@ -977,18 +989,62 @@ clear_drawn_features <- function(map) {
 #'
 #' maplibre() |>
 #'     add_geocoder_control(position = "top-right", placeholder = "Search location")
+#'
+#' # Using MapTiler geocoder
+#' maplibre() |>
+#'     add_geocoder_control(provider = "maptiler", maptiler_api_key = "YOUR_API_KEY")
 #' }
 add_geocoder_control <- function(
   map,
   position = "top-right",
   placeholder = "Search",
   collapsed = FALSE,
+  provider = NULL,
+  maptiler_api_key = NULL,
   ...
 ) {
+  # Set default provider for MapLibre if NULL
+  if (is.null(provider) && 
+      (inherits(map, "maplibre") || 
+       inherits(map, "maplibre_proxy") || 
+       inherits(map, "maplibre_compare_proxy"))) {
+    provider <- "osm"
+  }
+  
+  # Validate provider parameter for MapLibre
+  if (!is.null(provider) && !provider %in% c("osm", "maptiler")) {
+    rlang::abort("Provider must be either 'osm' or 'maptiler'")
+  }
+  
+  # Check that provider parameter is only used with MapLibre
+  if (!is.null(provider) &&
+      (inherits(map, "mapboxgl") ||
+        inherits(map, "mapboxgl_proxy") ||
+        inherits(map, "mapboxgl_compare_proxy"))
+  ) {
+    rlang::abort(
+      "The provider parameter is only available for MapLibre GL maps. Mapbox maps will always use the Mapbox geocoder."
+    )
+  }
+
+  # Handle MapTiler API key
+  if (!is.null(provider) && provider == "maptiler") {
+    if (is.null(maptiler_api_key)) {
+      if (Sys.getenv("MAPTILER_API_KEY") == "") {
+        rlang::abort(
+          "A MapTiler API key is required for the MapTiler geocoder. Get one at https://www.maptiler.com, then supply it here or set it in your .Renviron file with 'MAPTILER_API_KEY'='YOUR_KEY_HERE'."
+        )
+      }
+      maptiler_api_key <- Sys.getenv("MAPTILER_API_KEY")
+    }
+  }
+
   geocoder_options <- list(
     position = position,
     placeholder = placeholder,
     collapsed = collapsed,
+    provider = provider,
+    api_key = maptiler_api_key,
     ...
   )
 
