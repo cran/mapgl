@@ -1,6 +1,6 @@
 dependencies:
   - name: mapbox-gl-js
-    version: "3.12.0"
+    version: "3.14.0"
     src:
       href: "https://api.mapbox.com/mapbox-gl-js/v3.12.0/"
     script:
@@ -43,3 +43,13 @@ dependencies:
     src: "htmlwidgets/lib/mapbox-pmtiles"
     script:
       - "pmtiles-source-optimized-v2.js"
+  - name: turf
+    version: "7.2.0"
+    src: "htmlwidgets/lib/turf"
+    script:
+      - "turf.min.js"
+  - name: turf-operations
+    version: "1.0.0"
+    src: "htmlwidgets"
+    script:
+      - "turf-operations.js"

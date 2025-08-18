@@ -42,9 +42,18 @@ dependencies:
       - "h3j_h3t.js"
   - name: maptiler-geocoding-control
     version: 2.1.7
-    src:
-      href: "https://cdn.maptiler.com/maptiler-geocoding-control/v2.1.7/"
+    src: "htmlwidgets/lib/maptiler-geocoding-control"
     script:
       - "maplibregl.umd.js"
     stylesheet:
       - "style.css"
+  - name: turf
+    version: "7.2.0"
+    src: "htmlwidgets/lib/turf"
+    script:
+      - "turf.min.js"
+  - name: turf-operations
+    version: "1.0.0"
+    src: "htmlwidgets"
+    script:
+      - "turf-operations.js"
