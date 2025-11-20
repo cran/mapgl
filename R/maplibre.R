@@ -5,7 +5,11 @@
 #' @param zoom The initial zoom level of the map.
 #' @param bearing The initial bearing (rotation) of the map, in degrees.
 #' @param pitch The initial pitch (tilt) of the map, in degrees.
-#' @param bounds An sf object or bounding box to fit the map to.
+#' @param projection The map projection to use (e.g., "mercator", "globe").
+#' @param bounds The bounding box to fit the map to. Accepts one of the following:
+#' * `sf` object;
+#' * output of `st_bbox()`;
+#' * unnamed numeric vector of the form `c(xmin, ymin, xmax, ymax)`.
 #' @param width The width of the output htmlwidget.
 #' @param height The height of the output htmlwidget.
 #' @param ... Additional named parameters to be passed to the Mapbox GL map.
@@ -23,6 +27,7 @@ maplibre <- function(
     zoom = 0,
     bearing = 0,
     pitch = 0,
+    projection = "globe",
     bounds = NULL,
     width = "100%",
     height = NULL,
@@ -33,6 +38,21 @@ maplibre <- function(
     if (!is.null(bounds)) {
         if (inherits(bounds, "sf")) {
             bounds <- as.vector(sf::st_bbox(sf::st_transform(bounds, 4326)))
+        } else if (inherits(bounds, "bbox")) {
+            # Curiously, anyNA(bounds) or any(is.na(bounds)) would return FALSE even
+            # if one of the four values is NA.
+            missings <- vapply(bounds, is.na, logical(1))
+            if (any(missings)) {
+                stop("`bounds` shouldn't contain missing values.")
+            }
+            # Transform to EPSG:4326 if not already
+            crs <- attr(bounds, "crs")
+            if (!is.null(crs) && !sf::st_is_longlat(crs)) {
+                bbox_sfc <- sf::st_as_sfc(bounds)
+                bounds <- as.vector(sf::st_bbox(sf::st_transform(bbox_sfc, 4326)))
+            } else {
+                bounds <- as.vector(bounds)
+            }
         }
         additional_params$bounds <- bounds
     }
@@ -52,6 +72,7 @@ maplibre <- function(
             zoom = zoom,
             bearing = bearing,
             pitch = pitch,
+            projection = projection,
             additional_params = additional_params
         ),
         width = width,

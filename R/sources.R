@@ -75,17 +75,42 @@ add_source <- function(map, id, data, ...) {
 #' @param map A map object created by the `mapboxgl` or `maplibre` function.
 #' @param id A unique ID for the source.
 #' @param url A URL pointing to the vector tile source.
+#' @param tiles A vector of tile URLs, typically in the format "https://example.com/\{z\}/\{x\}/\{y\}.mvt" or similar.
 #' @param promote_id An optional property name to use as the feature ID. This is required for hover effects on vector tiles.
 #' @param ... Additional arguments to be passed to the JavaScript addSource method.
 #'
 #' @return The modified map object with the new source added.
 #' @export
-add_vector_source <- function(map, id, url, promote_id = NULL, ...) {
+add_vector_source <- function(
+  map,
+  id,
+  url = NULL,
+  tiles = NULL,
+  promote_id = NULL,
+  ...
+) {
   source <- list(
     id = id,
-    type = "vector",
-    url = url
+    type = "vector"
   )
+
+  if (!is.null(url)) {
+    source$url <- url
+  }
+
+  if (!is.null(tiles)) {
+    # Ensure tiles is always a list/array for JSON
+    if (is.character(tiles)) {
+      source$tiles <- as.list(tiles)
+    } else {
+      source$tiles <- tiles
+    }
+  }
+
+  # Check that at least one is provided
+  if (is.null(url) && is.null(tiles)) {
+    stop("Either 'url' or 'tiles' must be provided.")
+  }
 
   if (!is.null(promote_id)) {
     source$promoteId <- promote_id
@@ -539,7 +564,10 @@ add_video_source <- function(map, id, urls, coordinates) {
 #' @param map A map object created by the `mapboxgl` or `maplibre` function.
 #' @param id A unique ID for the source.
 #' @param url A URL pointing to the PMTiles archive.
-#' @param promote_id An optional property name to use as the feature ID. This is required for hover effects.
+#' @param source_type The source type for MapLibre maps. Either "vector" (default) or "raster".
+#' @param maxzoom Only used when source_type is "raster". The maximum zoom level for the PMTiles source. Defaults to 22.
+#' @param tilesize Only used when source_type is "raster". The size of the tiles in the PMTiles source. Defaults to 256.
+#' @param promote_id An optional property name to use as the feature ID. This is required for hover effects on vector sources.
 #' @param ... Additional arguments to be passed to the JavaScript addSource method.
 #'
 #' @return The modified map object with the new source added.
@@ -573,7 +601,16 @@ add_video_source <- function(map, id, urls, coordinates) {
 #'     )
 #'   )
 #' }
-add_pmtiles_source <- function(map, id, url, promote_id = NULL, ...) {
+add_pmtiles_source <- function(
+  map,
+  id,
+  url,
+  source_type = "vector",
+  maxzoom = 22,
+  tilesize = 256,
+  promote_id = NULL,
+  ...
+) {
   # Detect if we're using Mapbox GL JS or MapLibre GL JS
   is_mapbox <- inherits(map, "mapboxgl") ||
     inherits(map, "mapboxgl_proxy") ||
@@ -588,13 +625,28 @@ add_pmtiles_source <- function(map, id, url, promote_id = NULL, ...) {
       url = url # No pmtiles:// prefix needed
     )
   } else {
-    # For MapLibre GL JS, use the native pmtiles:// protocol
-    source <- list(
-      id = id,
-      type = "vector", # Standard vector source
-      url = paste0("pmtiles://", url), # Add pmtiles:// prefix,
-      promoteId = promote_id
-    )
+    # For MapLibre GL JS
+    if (source_type == "raster") {
+      # For raster PMTiles
+      source <- list(
+        id = id,
+        type = "raster",
+        url = paste0("pmtiles://", url),
+        tileSize = tilesize,
+        maxzoom = maxzoom
+      )
+    } else {
+      # For vector PMTiles
+      source <- list(
+        id = id,
+        type = "vector",
+        url = paste0("pmtiles://", url)
+      )
+
+      if (!is.null(promote_id)) {
+        source$promoteId <- promote_id
+      }
+    }
   }
 
   # Add any additional arguments

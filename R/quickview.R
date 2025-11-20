@@ -281,6 +281,10 @@ mapboxgl_view <- function(
         }
       } else {
         # Categorical column
+        # Convert factors to character to ensure proper matching
+        if (is.factor(col_data)) {
+          col_data <- as.character(col_data)
+        }
         unique_vals <- unique(col_data[!is.na(col_data)])
         n_cats <- length(unique_vals)
         colors <- palette(n_cats)
@@ -429,6 +433,10 @@ mapboxgl_view <- function(
         }
       } else {
         # Categorical column
+        # Convert factors to character to ensure proper matching
+        if (is.factor(col_data)) {
+          col_data <- as.character(col_data)
+        }
         unique_vals <- unique(col_data[!is.na(col_data)])
         n_cats <- length(unique_vals)
         colors <- palette(n_cats)
@@ -576,6 +584,10 @@ mapboxgl_view <- function(
         }
       } else {
         # Categorical column
+        # Convert factors to character to ensure proper matching
+        if (is.factor(col_data)) {
+          col_data <- as.character(col_data)
+        }
         unique_vals <- unique(col_data[!is.na(col_data)])
         n_cats <- length(unique_vals)
         colors <- palette(n_cats)
@@ -679,6 +691,9 @@ maplibre_view <- function(
     geom_type <- sf::st_geometry_type(data, by_geometry = FALSE)
     map <- maplibre(style = style, bounds = data, ...)
   }
+
+  # Set the projection to globe view by default
+  map <- set_projection(map, "globe")
 
   # Default navy color
   default_color <- color
@@ -894,6 +909,10 @@ maplibre_view <- function(
         }
       } else {
         # Categorical column
+        # Convert factors to character to ensure proper matching
+        if (is.factor(col_data)) {
+          col_data <- as.character(col_data)
+        }
         unique_vals <- unique(col_data[!is.na(col_data)])
         n_cats <- length(unique_vals)
         colors <- palette(n_cats)
@@ -1042,6 +1061,10 @@ maplibre_view <- function(
         }
       } else {
         # Categorical column
+        # Convert factors to character to ensure proper matching
+        if (is.factor(col_data)) {
+          col_data <- as.character(col_data)
+        }
         unique_vals <- unique(col_data[!is.na(col_data)])
         n_cats <- length(unique_vals)
         colors <- palette(n_cats)
@@ -1189,6 +1212,10 @@ maplibre_view <- function(
         }
       } else {
         # Categorical column
+        # Convert factors to character to ensure proper matching
+        if (is.factor(col_data)) {
+          col_data <- as.character(col_data)
+        }
         unique_vals <- unique(col_data[!is.na(col_data)])
         n_cats <- length(unique_vals)
         colors <- palette(n_cats)
@@ -1517,6 +1544,10 @@ add_view <- function(
         }
       } else {
         # Categorical column
+        # Convert factors to character to ensure proper matching
+        if (is.factor(col_data)) {
+          col_data <- as.character(col_data)
+        }
         unique_vals <- unique(col_data[!is.na(col_data)])
         n_cats <- length(unique_vals)
         colors <- palette(n_cats)
@@ -1668,6 +1699,10 @@ add_view <- function(
         }
       } else {
         # Categorical column
+        # Convert factors to character to ensure proper matching
+        if (is.factor(col_data)) {
+          col_data <- as.character(col_data)
+        }
         unique_vals <- unique(col_data[!is.na(col_data)])
         n_cats <- length(unique_vals)
         colors <- palette(n_cats)
@@ -1818,6 +1853,10 @@ add_view <- function(
         }
       } else {
         # Categorical column
+        # Convert factors to character to ensure proper matching
+        if (is.factor(col_data)) {
+          col_data <- as.character(col_data)
+        }
         unique_vals <- unique(col_data[!is.na(col_data)])
         n_cats <- length(unique_vals)
         colors <- palette(n_cats)

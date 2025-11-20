@@ -1,3 +1,18 @@
+# mapgl 0.4.3
+
+* Update Mapbox GL JS, MapLibre GL JS, and Turf.js versions 
+The `bounds` argument in `maplibre()` and `mapboxgl()` now accepts `sf::st_bbox()` output with automatic CRS transformation to EPSG:4326.
+* Fixed control duplication when `set_style()` is called in Shiny applications.
+* Fixed `clear_controls()` not properly removing controls.
+* Added `projection` argument to `maplibre()` for consistency with `mapboxgl()`.
+* Fixed tooltip/popup z-index conflicts.
+* Fixed tooltips with `number_format()` in comparison maps.
+* New `palette_to_lut()` function for creating custom color lookup tables in Mapbox styles.
+* Improved draw control proxy functionality and element ordering.
+* `maplibre()` and `maplibre_view()` now defaults to the globe projection.
+* Added support for raster PMTiles.
+* Factor columns now handled correctly in quickview functions.
+
 # mapgl 0.4.1
 
 * **Enhanced draw control with new drawing modes and live measurements**:
