@@ -1,3 +1,20 @@
+# mapgl 0.4.5
+
+* **Esri styles support**: New `esri_style()` function provides access to Esri basemap styles for use with MapLibre maps, with support for ArcGIS API key authentication.
+
+* **MLT format support**: Updated PMTiles implementation to support the MapLibre Tiles (MLT) format.
+
+* Update Mapbox GL JS to v3.19.1 and MapLibre GL JS to v5.19.0.
+
+* **Bug fixes and improvements**:
+  - Fixed interactive legend edge case where max value could disappear when adjusting the low-end slider (#167)
+  - Fixed control stacking issue when reactives are used in map initialization functions
+  - Improved `add_reset_control()` button to match the visual style of other navigation controls (#168)
+  - Fixed trailing slash in Mapbox GL JS CDN URLs that could cause 404 errors on library load (#176)
+  - Geocoder control now properly hidden when using screenshot control (#169)
+  - Fixed `set_source()` not working with `maplibre_compare_proxy()` and `mapboxgl_compare_proxy()` (#171)
+  - Documentation updates (#175)
+
 # mapgl 0.4.4
 
 * Update Mapbox GL JS to v3.17.0 and MapLibre GL JS to v5.15.0.
@@ -5,17 +22,20 @@
 * **Interactive legends**: New opt-in interactivity for map legends enables direct data filtering from the legend:
   - Categorical legends: Click legend items to toggle category visibility on the map. Disabled categories are visually indicated with reduced opacity and strikethrough text.
   - Continuous legends: Drag dual handles on the gradient bar to filter data within a selected range. Ghost overlays indicate excluded regions, and the middle section can be dragged to pan the selection window.
-  - New parameters `interactive = TRUE`, `filter_column`, and `classification` in legend functions
+  - New parameters `interactive = TRUE`, `filter_column`, `filter_values`, and `classification` in legend functions
   - Smart number formatting with K/M notation for large values in legend labels
   - New `interactive_legend` parameter in `maplibre_view()` and `mapboxgl_view()` for quick interactive visualizations
   - Full Shiny integration with filter state available via input values
   - Works with GeoJSON, vector tiles, and PMTiles sources
+
+* **Draggable legends**: New `draggable = TRUE` parameter allows users to drag legends to any position on the map. Supports both mouse and touch interactions.
 
 * **Screenshot control**: New `add_screenshot_control()` function allows users to capture and download map screenshots as PNG images. Includes `image_scale` parameter for controlling output resolution.
 
 * **Globe projection for compare views**: Compare maps in MapLibre now properly respect globe projection when specified.
 
 * **Bug fixes and improvements**:
+  - Fixed floating-point precision issue in interactive legend filters that could exclude edge values
   - Fixed continuous legend error when values are pre-formatted character strings (e.g., from `get_legend_labels()`)
   - Fixed draw control source handling for better feature management (#164)
   - Fixed `step_expr()` to properly handle quoted column names (#148)
