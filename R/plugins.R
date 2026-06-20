@@ -1,16 +1,29 @@
 #' Create a Compare widget
 #'
-#' This function creates a comparison view between two Mapbox GL or Maplibre GL maps, allowing users to either swipe between the two maps or view them side-by-side with synchronized navigation.
+#' This function creates a comparison view between two or more Mapbox GL or Maplibre GL maps, allowing users to either swipe between two maps or view multiple maps side-by-side with synchronized navigation.
 #'
 #' @param map1 A `mapboxgl` or `maplibre` object representing the first map.
 #' @param map2 A `mapboxgl` or `maplibre` object representing the second map.
+#' @param ... Additional `mapboxgl` or `maplibre` objects to include in the
+#'   comparison. Supplying more than two maps requires `mode = "sync"`, and
+#'   the synced maps are arranged in a grid controlled by `ncol`. When extra
+#'   maps are supplied, all other arguments (`width`, `height`, etc.) must be
+#'   passed by name.
 #' @param width Width of the map container.
 #' @param height Height of the map container.
 #' @param elementId An optional string specifying the ID of the container for the comparison. If NULL, a unique ID will be generated.
 #' @param mousemove A logical value indicating whether to enable swiping during cursor movement (rather than only when clicked). Only applicable when `mode="swipe"`.
 #' @param orientation A string specifying the orientation of the swiper or the side-by-side layout, either "horizontal" or "vertical".
 #' @param mode A string specifying the comparison mode: "swipe" (default) for a swipeable comparison with a slider, or "sync" for synchronized maps displayed next to each other.
+#' @param ncol Number of columns in the synced map grid. Defaults to
+#'   `ceiling(sqrt(n))` for more than two maps; for two maps, `orientation`
+#'   controls the layout unless `ncol` is given. Only applicable when
+#'   `mode = "sync"`.
 #' @param swiper_color An optional CSS color value (e.g., "#000000", "rgb(0,0,0)", "black") to customize the color of the swiper handle. Only applicable when `mode="swipe"`.
+#' @param laser Logical; if `TRUE`, show a laser pointer on the other maps
+#'   that follows the cursor location. Only applies when `mode = "sync"`.
+#' @param laser_color CSS color for the laser pointer.
+#' @param laser_size Size of the laser pointer in pixels.
 #'
 #' @return A comparison widget.
 #' @export
@@ -20,8 +33,8 @@
 #'
 #' The `compare()` function supports two modes:
 #'
-#' * `mode="swipe"` (default) - Creates a swipeable interface with a slider to reveal portions of each map
-#' * `mode="sync"` - Places the maps next to each other with synchronized navigation
+#' * `mode="swipe"` (default) - Creates a swipeable interface with a slider to reveal portions of each map. Swipe mode supports exactly two maps.
+#' * `mode="sync"` - Places the maps next to each other with synchronized navigation. Sync mode supports two or more maps; pass additional maps after `map1` and `map2` and control the grid layout with `ncol`.
 #'
 #' In both modes, navigation (panning, zooming, rotating, tilting) is synchronized between the maps.
 #'
@@ -54,6 +67,18 @@
 #' * `input$mycompare_before_click` - Click events on the left/top map
 #' * `input$mycompare_after_click` - Click events on the right/bottom map
 #'
+#' ## Comparing more than two maps
+#'
+#' When more than two maps are supplied with `mode = "sync"`, the maps are
+#' identified as "map1", "map2", "map3", and so on, in the order they were
+#' passed to `compare()`. Use these identifiers (or their position as an
+#' integer) as `map_side` in the proxy functions, e.g.
+#' `maplibre_compare_proxy("mycompare", map_side = "map3")` or
+#' `map_side = 3`. Shiny input values follow the same naming:
+#' `input$mycompare_map1_view`, `input$mycompare_map3_click`, etc.
+#' Legends can be targeted at individual maps in the grid with
+#' `add_legend(..., target = "map3")`.
+#'
 #' @examples
 #' \dontrun{
 #' library(mapgl)
@@ -66,6 +91,14 @@
 #'
 #' # Synchronized side-by-side mode
 #' compare(m1, m2, mode = "sync")
+#'
+#' # Synchronized maps with a laser pointer
+#' compare(m1, m2, mode = "sync", laser = TRUE)
+#'
+#' # Synchronize four maps in a 2 x 2 grid
+#' m3 <- mapboxgl(style = mapbox_style("streets"))
+#' m4 <- mapboxgl(style = mapbox_style("satellite"))
+#' compare(m1, m2, m3, m4, mode = "sync", ncol = 2)
 #'
 #' # Custom swiper color
 #' compare(m1, m2, swiper_color = "#FF0000")  # Red swiper
@@ -91,7 +124,7 @@
 #'     right_proxy <- maplibre_compare_proxy("comparison", map_side = "after")
 #'     set_style(right_proxy, carto_style("voyager"))
 #'   })
-#'   
+#'
 #'   # Example with custom swiper color
 #'   output$comparison2 <- renderMaplibreCompare({
 #'     compare(
@@ -105,58 +138,158 @@
 compare <- function(
     map1,
     map2,
+    ...,
     width = "100%",
     height = NULL,
     elementId = NULL,
     mousemove = FALSE,
     orientation = "vertical",
     mode = "swipe",
-    swiper_color = NULL
+    ncol = NULL,
+    swiper_color = NULL,
+    laser = FALSE,
+    laser_color = "#ff2d55",
+    laser_size = 14
 ) {
+    extra_maps <- list(...)
+
+    # Distinguish stray named arguments (likely typos) from legacy positional
+    # arguments (width/height/etc. must now be passed by name)
+    is_map_object <- function(m) {
+        inherits(m, "mapboxgl") || inherits(m, "maplibregl")
+    }
+    if (length(extra_maps) > 0) {
+        extra_names <- names(extra_maps)
+        for (i in seq_along(extra_maps)) {
+            if (!is_map_object(extra_maps[[i]])) {
+                if (!is.null(extra_names) && nzchar(extra_names[i])) {
+                    stop(
+                        sprintf(
+                            "Unknown argument `%s` passed to `compare()`; only additional map objects may be supplied beyond the named arguments.",
+                            extra_names[i]
+                        )
+                    )
+                } else {
+                    stop(
+                        "Arguments after the maps must be named, e.g. `compare(m1, m2, width = \"100%\")`. Only additional map objects may be passed unnamed."
+                    )
+                }
+            }
+        }
+    }
+
+    maps <- c(list(map1, map2), extra_maps)
+    n <- length(maps)
+
     if (!mode %in% c("swipe", "sync")) {
         stop("Mode must be either 'swipe' or 'sync'.")
     }
 
-    if (inherits(map1, "mapboxgl") && inherits(map2, "mapboxgl")) {
-        compare.mapboxgl(
-            map1,
-            map2,
-            width,
-            height,
-            elementId,
-            mousemove,
-            orientation,
-            mode,
-            swiper_color
+    if (n > 2 && mode != "sync") {
+        stop(
+            "`mode = \"swipe\"` supports exactly 2 maps; use `mode = \"sync\"` to compare more than 2 maps."
         )
-    } else if (inherits(map1, "maplibregl") && inherits(map2, "maplibregl")) {
-        compare.maplibre(
-            map1,
-            map2,
+    }
+
+    laser <- isTRUE(laser)
+    if (laser && mode != "sync") {
+        rlang::warn("`laser` is only supported when `mode = \"sync\"`; ignoring it.")
+        laser <- FALSE
+    }
+
+    if (
+        length(laser_size) != 1 ||
+            !is.numeric(laser_size) ||
+            !is.finite(laser_size) ||
+            laser_size <= 0
+    ) {
+        stop("`laser_size` must be a positive number.")
+    }
+
+    if (!is.null(ncol)) {
+        # The integer.max bound must come before %% 1: it keeps later integer
+        # casts safe and short-circuits huge values like 1e20, for which the
+        # modulus itself warns about lost accuracy
+        if (
+            length(ncol) != 1 ||
+                !is.numeric(ncol) ||
+                is.na(ncol) ||
+                !is.finite(ncol) ||
+                ncol < 1 ||
+                ncol > .Machine$integer.max ||
+                ncol %% 1 != 0
+        ) {
+            stop("`ncol` must be a single positive integer.")
+        }
+        if (mode != "sync") {
+            rlang::warn("`ncol` is ignored when `mode = \"swipe\"`.")
+            ncol <- NULL
+        } else if (ncol > n) {
+            rlang::warn(sprintf(
+                "`ncol` (%d) is greater than the number of maps (%d); using %d.",
+                as.integer(ncol),
+                n,
+                n
+            ))
+            ncol <- n
+        }
+    }
+
+    # Default grid layout for more than two maps; for two maps, orientation
+    # controls the layout unless ncol is explicitly supplied
+    if (is.null(ncol) && n > 2) {
+        ncol <- ceiling(sqrt(n))
+    }
+
+    if (all(vapply(maps, inherits, logical(1), "mapboxgl"))) {
+        compare.mapboxgl(
+            maps,
             width,
             height,
             elementId,
             mousemove,
             orientation,
             mode,
-            swiper_color
+            ncol,
+            swiper_color,
+            laser,
+            laser_color,
+            laser_size
+        )
+    } else if (all(vapply(maps, inherits, logical(1), "maplibregl"))) {
+        compare.maplibre(
+            maps,
+            width,
+            height,
+            elementId,
+            mousemove,
+            orientation,
+            mode,
+            ncol,
+            swiper_color,
+            laser,
+            laser_color,
+            laser_size
         )
     } else {
-        stop("Both maps must be either mapboxgl or maplibregl objects.")
+        stop("All maps must be either mapboxgl or maplibregl objects.")
     }
 }
 
 # Mapbox GL comparison widget
 compare.mapboxgl <- function(
-    map1,
-    map2,
+    maps,
     width,
     height,
     elementId,
     mousemove,
     orientation,
     mode,
-    swiper_color = NULL
+    ncol = NULL,
+    swiper_color = NULL,
+    laser = FALSE,
+    laser_color = "#ff2d55",
+    laser_size = 14
 ) {
     if (is.null(elementId)) {
         elementId <- paste0(
@@ -166,14 +299,28 @@ compare.mapboxgl <- function(
     }
 
     x <- list(
-        map1 = map1$x,
-        map2 = map2$x,
+        map1 = maps[[1]]$x,
+        map2 = maps[[2]]$x,
         elementId = elementId,
         mousemove = mousemove,
         orientation = orientation,
         mode = mode,
-        swiper_color = swiper_color
+        swiper_color = swiper_color,
+        laser = list(
+            enabled = laser,
+            color = laser_color,
+            size = laser_size
+        )
     )
+
+    # Grids with more than two maps carry the full map list; the 2-map
+    # payload is unchanged for backwards compatibility
+    if (length(maps) > 2) {
+        x$maps <- lapply(maps, function(m) m$x)
+    }
+    if (!is.null(ncol)) {
+        x$sync_cols <- ncol
+    }
 
     control_css <- htmltools::htmlDependency(
         name = "layers-control",
@@ -182,13 +329,18 @@ compare.mapboxgl <- function(
         stylesheet = "layers-control.css"
     )
 
+    dependencies <- c(
+        list(control_css),
+        unlist(lapply(maps, function(m) m$dependencies), recursive = FALSE)
+    )
+
     widget <- htmlwidgets::createWidget(
         name = "mapboxgl_compare",
         x,
         width = width,
         height = height,
         package = "mapgl",
-        dependencies = list(control_css),
+        dependencies = dependencies,
         elementId = if (is.null(shiny::getDefaultReactiveDomain()))
             elementId else NULL,
         sizingPolicy = htmlwidgets::sizingPolicy(
@@ -210,15 +362,18 @@ compare.mapboxgl <- function(
 
 # Maplibre comparison widget
 compare.maplibre <- function(
-    map1,
-    map2,
+    maps,
     width,
     height,
     elementId,
     mousemove,
     orientation,
     mode,
-    swiper_color = NULL
+    ncol = NULL,
+    swiper_color = NULL,
+    laser = FALSE,
+    laser_color = "#ff2d55",
+    laser_size = 14
 ) {
     if (is.null(elementId)) {
         elementId <- paste0(
@@ -227,34 +382,29 @@ compare.maplibre <- function(
         )
     }
 
-    # check_for_popups_or_tooltips <- function(map) {
-    #     if (!is.null(map$x$layers)) {
-    #         for (layer in map$x$layers) {
-    #             if (!is.null(layer$popup) || !is.null(layer$tooltip)) {
-    #                 return(TRUE)
-    #             }
-    #         }
-    #     }
-    #     return(FALSE)
-    # }
-    #
-    # if (
-    #     check_for_popups_or_tooltips(map1) || check_for_popups_or_tooltips(map2)
-    # ) {
-    #     rlang::warn(
-    #         "Popups and tooltips are not currently supported for `compare()` with maplibre maps."
-    #     )
-    # }
-
     x <- list(
-        map1 = map1$x,
-        map2 = map2$x,
+        map1 = maps[[1]]$x,
+        map2 = maps[[2]]$x,
         elementId = elementId,
         mousemove = mousemove,
         orientation = orientation,
         mode = mode,
-        swiper_color = swiper_color
+        swiper_color = swiper_color,
+        laser = list(
+            enabled = laser,
+            color = laser_color,
+            size = laser_size
+        )
     )
+
+    # Grids with more than two maps carry the full map list; the 2-map
+    # payload is unchanged for backwards compatibility
+    if (length(maps) > 2) {
+        x$maps <- lapply(maps, function(m) m$x)
+    }
+    if (!is.null(ncol)) {
+        x$sync_cols <- ncol
+    }
 
     control_css <- htmltools::htmlDependency(
         name = "layers-control",
@@ -263,13 +413,18 @@ compare.maplibre <- function(
         stylesheet = "layers-control.css"
     )
 
+    dependencies <- c(
+        list(control_css),
+        unlist(lapply(maps, function(m) m$dependencies), recursive = FALSE)
+    )
+
     widget <- htmlwidgets::createWidget(
         name = "maplibregl_compare",
         x,
         width = width,
         height = height,
         package = "mapgl",
-        dependencies = list(control_css),
+        dependencies = dependencies,
         elementId = if (is.null(shiny::getDefaultReactiveDomain()))
             elementId else NULL,
         sizingPolicy = htmlwidgets::sizingPolicy(
@@ -365,13 +520,54 @@ renderMaplibreCompare <- function(expr, env = parent.frame(), quoted = FALSE) {
     )
 }
 
+# Normalize and validate the map_side argument for compare proxies.
+# Accepts "before", "after", "mapN" (N >= 1), or a positive integer
+# (e.g. 3 becomes "map3").
+normalize_map_side <- function(map_side) {
+    if (is.numeric(map_side)) {
+        # The integer.max bound must come before %% 1: it keeps the cast below
+        # safe and short-circuits huge values like 1e20, for which the modulus
+        # itself warns about lost accuracy
+        if (
+            length(map_side) != 1 ||
+                is.na(map_side) ||
+                !is.finite(map_side) ||
+                map_side < 1 ||
+                map_side > .Machine$integer.max ||
+                map_side %% 1 != 0
+        ) {
+            stop(
+                "`map_side` must be \"before\", \"after\", \"mapN\" (e.g. \"map3\"), or a positive integer."
+            )
+        }
+        return(paste0("map", as.integer(map_side)))
+    }
+
+    if (
+        !is.character(map_side) ||
+            length(map_side) != 1 ||
+            is.na(map_side) ||
+            !(map_side %in% c("before", "after") ||
+                grepl("^map[1-9][0-9]*$", map_side))
+    ) {
+        stop(
+            "`map_side` must be \"before\", \"after\", \"mapN\" (e.g. \"map3\"), or a positive integer."
+        )
+    }
+
+    map_side
+}
+
 #' Create a proxy object for a Mapbox GL Compare widget in Shiny
 #'
 #' This function allows updates to be sent to an existing Mapbox GL Compare widget in a Shiny application.
 #'
 #' @param compareId The ID of the compare output element.
 #' @param session The Shiny session object.
-#' @param map_side Which map side to target in the compare widget, either "before" or "after".
+#' @param map_side Which map to target in the compare widget: "before" or
+#'   "after" for two-map widgets, or a map identifier such as "map3" (or its
+#'   position as an integer, e.g. `3`) for synced grids with more than two
+#'   maps. "before" and "after" are aliases for the first and second maps.
 #'
 #' @return A proxy object for the Mapbox GL Compare widget.
 #' @export
@@ -385,6 +581,8 @@ mapboxgl_compare_proxy <- function(
             "mapboxgl_compare_proxy must be called from within a Shiny session"
         )
     }
+
+    map_side <- normalize_map_side(map_side)
 
     if (
         !is.null(session$ns) &&
@@ -405,7 +603,10 @@ mapboxgl_compare_proxy <- function(
 #'
 #' @param compareId The ID of the compare output element.
 #' @param session The Shiny session object.
-#' @param map_side Which map side to target in the compare widget, either "before" or "after".
+#' @param map_side Which map to target in the compare widget: "before" or
+#'   "after" for two-map widgets, or a map identifier such as "map3" (or its
+#'   position as an integer, e.g. `3`) for synced grids with more than two
+#'   maps. "before" and "after" are aliases for the first and second maps.
 #'
 #' @return A proxy object for the Maplibre GL Compare widget.
 #' @export
@@ -419,6 +620,8 @@ maplibre_compare_proxy <- function(
             "maplibre_compare_proxy must be called from within a Shiny session"
         )
     }
+
+    map_side <- normalize_map_side(map_side)
 
     if (
         !is.null(session$ns) &&

@@ -28,6 +28,8 @@ add_circle_layer(
   max_zoom = NULL,
   popup = NULL,
   tooltip = NULL,
+  tooltip_style = NULL,
+  popup_style = NULL,
   hover_options = NULL,
   before_id = NULL,
   filter = NULL,
@@ -35,7 +37,7 @@ add_circle_layer(
 )
 }
 \arguments{
-\item{map}{A map object created by the \code{mapboxgl} function.}
+\item{map}{A map object created by the \code{mapboxgl} or \code{maplibre} functions.}
 
 \item{id}{A unique ID for the layer.}
 
@@ -77,9 +79,11 @@ add_circle_layer(
 
 \item{max_zoom}{The maximum zoom level for the layer.}
 
-\item{popup}{A column name containing information to display in a popup on click.  Columns containing HTML will be parsed.}
+\item{popup}{Popup content shown on click: a column name, a \code{{brace}} template (e.g. \code{"{name}: {value}"}), or a \code{concat()}/\code{number_format()} expression. Columns containing HTML are parsed.}
 
-\item{tooltip}{A column name containing information to display in a tooltip on hover. Columns containing HTML will be parsed.}
+\item{tooltip}{Tooltip content shown on hover; same forms as \code{popup}.}
+
+\item{tooltip_style, popup_style}{Optional appearance for the tooltip/popup: a preset string (\code{"light"} or \code{"dark"}) or a \code{\link[=tooltip_style]{tooltip_style()}} object. When omitted, the native (unstyled) appearance is kept.}
 
 \item{hover_options}{A named list of options for highlighting features in the layer on hover.}
 
@@ -87,7 +91,9 @@ add_circle_layer(
 
 \item{filter}{An optional filter expression to subset features in the layer.}
 
-\item{cluster_options}{A list of options for clustering circles, created by the \code{cluster_options()} function.}
+\item{cluster_options}{A list of options for clustering circles, created by the \code{cluster_options()} function. Two input shapes are supported: pass an \code{sf}/\code{sfc} object as \code{source} for native live clustering (a GeoJSON source is injected automatically), or pass the id of an already-registered vector source (e.g. from \code{add_pmtiles_source()}) along with \code{source_layer} to use pre-clustered vector tiles such as those produced by the freestiler package. In the latter case the cluster-count label is abbreviated client-side via \code{\link[=number_format]{number_format()}}.
+
+\strong{Updating a clustered layer in Shiny:} the shortcut creates three layers (\code{"id"}, \code{"id-clusters"}, \code{"id-cluster-count"}) on top of one source. For reactive data updates the recommended pattern is \code{\link[=set_source]{set_source()}}, which replaces the source's data and lets Mapbox/MapLibre re-cluster automatically without tearing down the layers: \code{mapboxgl_proxy("map") |> set_source(layer_id = "circles", source = filtered())}. If you need to remove a clustered layer entirely (e.g. before switching backends), pass the full trio to \code{\link[=clear_layer]{clear_layer()}}: \code{clear_layer(proxy, c("circles", "circles-clusters", "circles-cluster-count"))}.}
 }
 \value{
 The modified map object with the new circle layer added.

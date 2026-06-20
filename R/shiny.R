@@ -56,6 +56,38 @@ maplibre_proxy <- function(mapId, session = shiny::getDefaultReactiveDomain()) {
 #'
 #' This function sets a filter on a map layer, working with both regular map objects and proxy objects.
 #'
+#' @section Clustered layers:
+#' A layer created via the `cluster_options` shortcut in [add_circle_layer()]
+#' or [add_symbol_layer()] is actually three layers over one source
+#' (`"id"`, `"id-clusters"`, `"id-cluster-count"`). `set_filter()` targets
+#' exactly one of them, so:
+#'
+#' * Calling `set_filter("id", ...)` applies only to the unclustered
+#'   sub-layer. Cluster circles still show the pre-filter counts.
+#' * Cluster points are synthetic (their only properties are
+#'   `point_count`, `cluster_id`, etc.), so a filter that reads a
+#'   feature property like `"year"` cannot be meaningfully applied to
+#'   the `-clusters` layer — it would evaluate to `FALSE` and hide all
+#'   clusters.
+#'
+#' For the common "filter my data" case on a clustered map, use
+#' [set_source()] instead. It replaces the source's data and
+#' Mapbox/MapLibre re-cluster automatically:
+#'
+#' ```
+#' mapboxgl_proxy("map") |>
+#'   set_source(layer_id = "circles", source = filtered())
+#' ```
+#'
+#' `set_filter()` is still the right tool for cluster-aware filters
+#' that read cluster-point properties, e.g. hiding clusters below a
+#' count threshold:
+#'
+#' ```
+#' mapboxgl_proxy("map") |>
+#'   set_filter("circles-clusters", list(">=", get_column("point_count"), 10))
+#' ```
+#'
 #' @param map A map object created by the `mapboxgl` or `maplibre` function, or a proxy object.
 #' @param layer_id The ID of the layer to which the filter will be applied.
 #' @param filter The filter expression to apply.
@@ -492,12 +524,15 @@ move_layer <- function(map, layer_id, before_id = NULL) {
 #'
 #' @param map A map object created by the `mapboxgl` or `maplibre` function, or a proxy object.
 #' @param layer_id The ID of the layer to update.
-#' @param tooltip  The name of the tooltip to set.
+#' @param tooltip Tooltip content: a column name, a `{brace}` template, or a
+#'   `concat()`/`number_format()` expression.
 #' @param layer Deprecated. Use `layer_id` instead.
+#' @param style Optional tooltip appearance: a preset string (`"light"` or
+#'   `"dark"`) or a [tooltip_style()] object.
 #'
 #' @return The updated map object.
 #' @export
-set_tooltip <- function(map, layer_id = NULL, tooltip, layer = NULL) {
+set_tooltip <- function(map, layer_id = NULL, tooltip, layer = NULL, style = NULL) {
   # Handle backwards compatibility
   if (!is.null(layer) && is.null(layer_id)) {
     layer_id <- layer
@@ -510,6 +545,7 @@ set_tooltip <- function(map, layer_id = NULL, tooltip, layer = NULL) {
   if (is.null(layer_id)) {
     stop("layer_id is required")
   }
+  style_spec <- mapgl_normalize_tooltip_style(style, arg = "style")
   if (any(inherits(map, "mapboxgl_proxy"), inherits(map, "maplibre_proxy"))) {
     if (
       inherits(map, "mapboxgl_compare_proxy") ||
@@ -526,6 +562,7 @@ set_tooltip <- function(map, layer_id = NULL, tooltip, layer = NULL) {
             type = "set_tooltip",
             layer = layer_id,
             tooltip = tooltip,
+            tooltip_style = style_spec,
             map = map$map_side
           )
         )
@@ -541,7 +578,8 @@ set_tooltip <- function(map, layer_id = NULL, tooltip, layer = NULL) {
           message = list(
             type = "set_tooltip",
             layer = layer_id,
-            tooltip = tooltip
+            tooltip = tooltip,
+            tooltip_style = style_spec
           )
         )
       )
@@ -558,12 +596,15 @@ set_tooltip <- function(map, layer_id = NULL, tooltip, layer = NULL) {
 #'
 #' @param map A map object created by the `mapboxgl` or `maplibre` function, or a proxy object.
 #' @param layer_id The ID of the layer to update.
-#' @param popup The name of the popup property or an expression to set.
+#' @param popup Popup content: a column name, a `{brace}` template, or a
+#'   `concat()`/`number_format()` expression.
 #' @param layer Deprecated. Use `layer_id` instead.
+#' @param style Optional popup appearance: a preset string (`"light"` or
+#'   `"dark"`) or a [tooltip_style()]/[popup_style()] object.
 #'
 #' @return The updated map object.
 #' @export
-set_popup <- function(map, layer_id = NULL, popup, layer = NULL) {
+set_popup <- function(map, layer_id = NULL, popup, layer = NULL, style = NULL) {
   # Handle backwards compatibility
   if (!is.null(layer) && is.null(layer_id)) {
     layer_id <- layer
@@ -576,6 +617,7 @@ set_popup <- function(map, layer_id = NULL, popup, layer = NULL) {
   if (is.null(layer_id)) {
     stop("layer_id is required")
   }
+  style_spec <- mapgl_normalize_tooltip_style(style, arg = "style")
   if (any(inherits(map, "mapboxgl_proxy"), inherits(map, "maplibre_proxy"))) {
     if (
       inherits(map, "mapboxgl_compare_proxy") ||
@@ -592,6 +634,7 @@ set_popup <- function(map, layer_id = NULL, popup, layer = NULL) {
             type = "set_popup",
             layer = layer_id,
             popup = popup,
+            popup_style = style_spec,
             map = map$map_side
           )
         )
@@ -607,7 +650,8 @@ set_popup <- function(map, layer_id = NULL, popup, layer = NULL) {
           message = list(
             type = "set_popup",
             layer = layer_id,
-            popup = popup
+            popup = popup,
+            popup_style = style_spec
           )
         )
       )

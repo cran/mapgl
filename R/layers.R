@@ -12,8 +12,9 @@
 #' @param slot An optional slot for layer order.
 #' @param min_zoom The minimum zoom level for the layer.
 #' @param max_zoom The maximum zoom level for the layer.
-#' @param popup A column name containing information to display in a popup on click.  Columns containing HTML will be parsed.
-#' @param tooltip A column name containing information to display in a tooltip on hover. Columns containing HTML will be parsed.
+#' @param popup Popup content shown on click: a column name, a `{brace}` template (e.g. `"{name}: {value}"`), or a `concat()`/`number_format()` expression. Columns containing HTML are parsed.
+#' @param tooltip Tooltip content shown on hover; same forms as `popup`.
+#' @param tooltip_style,popup_style Optional appearance for the tooltip/popup: a preset string (`"light"` or `"dark"`) or a [tooltip_style()] object. When omitted, the native (unstyled) appearance is kept.
 #' @param hover_options A named list of options for highlighting features in the layer on hover.
 #' @param before_id The name of the layer that this layer appears "before", allowing you to insert layers below other layers in your basemap (e.g. labels).
 #' @param filter An optional filter expression to subset features in the layer.
@@ -68,7 +69,9 @@ add_layer <- function(
   tooltip = NULL,
   hover_options = NULL,
   before_id = NULL,
-  filter = NULL
+  filter = NULL,
+  tooltip_style = NULL,
+  popup_style = NULL
 ) {
   if (length(paint) == 0) {
     paint <- NULL
@@ -77,6 +80,12 @@ add_layer <- function(
   if (length(layout) == 0) {
     layout <- NULL
   }
+
+  tooltip_style <- mapgl_normalize_tooltip_style(
+    tooltip_style,
+    arg = "tooltip_style"
+  )
+  popup_style <- mapgl_normalize_tooltip_style(popup_style, arg = "popup_style")
 
   # Convert sfc/sf objects to GeoJSON source
   if (inherits(source, "sfc")) {
@@ -95,6 +104,8 @@ add_layer <- function(
     )
   }
 
+  map <- mapgl_resolve_pending_flowmaps(map, before_id = id)
+
   map$x$layers <- c(
     map$x$layers,
     list(list(
@@ -109,11 +120,15 @@ add_layer <- function(
       maxzoom = max_zoom,
       popup = popup,
       tooltip = tooltip,
+      tooltip_style = tooltip_style,
+      popup_style = popup_style,
       hover_options = hover_options,
       before_id = before_id,
       filter = filter
     ))
   )
+
+  map <- mapgl_record_layer_order(map, id)
 
   if (inherits(map, "mapboxgl_proxy") || inherits(map, "maplibre_proxy")) {
     layer <- list(
@@ -124,6 +139,8 @@ add_layer <- function(
       paint = paint,
       popup = popup,
       tooltip = tooltip,
+      tooltip_style = tooltip_style,
+      popup_style = popup_style,
       hover_options = hover_options,
       before_id = before_id
     )
@@ -206,8 +223,9 @@ add_layer <- function(
 #' @param slot An optional slot for layer order.
 #' @param min_zoom The minimum zoom level for the layer.
 #' @param max_zoom The maximum zoom level for the layer.
-#' @param popup A column name containing information to display in a popup on click.  Columns containing HTML will be parsed.
-#' @param tooltip A column name containing information to display in a tooltip on hover. Columns containing HTML will be parsed.
+#' @param popup Popup content shown on click: a column name, a `{brace}` template (e.g. `"{name}: {value}"`), or a `concat()`/`number_format()` expression. Columns containing HTML are parsed.
+#' @param tooltip Tooltip content shown on hover; same forms as `popup`.
+#' @param tooltip_style,popup_style Optional appearance for the tooltip/popup: a preset string (`"light"` or `"dark"`) or a [tooltip_style()] object. When omitted, the native (unstyled) appearance is kept.
 #' @param hover_options A named list of options for highlighting features in the layer on hover.
 #' @param before_id The name of the layer that this layer appears "before", allowing you to insert layers below other layers in your basemap (e.g. labels).
 #' @param filter An optional filter expression to subset features in the layer.
@@ -263,6 +281,8 @@ add_fill_layer <- function(
   max_zoom = NULL,
   popup = NULL,
   tooltip = NULL,
+  tooltip_style = NULL,
+  popup_style = NULL,
   hover_options = NULL,
   before_id = NULL,
   filter = NULL
@@ -303,7 +323,9 @@ add_fill_layer <- function(
     tooltip,
     hover_options,
     before_id,
-    filter
+    filter,
+    tooltip_style = tooltip_style,
+    popup_style = popup_style
   )
 
   return(map)
@@ -358,10 +380,9 @@ add_fill_layer <- function(
 #' @param slot An optional slot for layer order.
 #' @param min_zoom The minimum zoom level for the layer.
 #' @param max_zoom The maximum zoom level for the layer.
-#' @param popup A column name containing information to display in a popup on click.
-#'   Columns containing HTML will be parsed.
-#' @param tooltip A column name containing information to display in a tooltip on hover.
-#'   Columns containing HTML will be parsed.
+#' @param popup Popup content shown on click: a column name, a `{brace}` template (e.g. `"{name}: {value}"`), or a `concat()`/`number_format()` expression. Columns containing HTML are parsed.
+#' @param tooltip Tooltip content shown on hover; same forms as `popup`.
+#' @param tooltip_style,popup_style Optional appearance for the tooltip/popup: a preset string (`"light"` or `"dark"`) or a [tooltip_style()] object. When omitted, the native (unstyled) appearance is kept.
 #' @param hover_options A named list of options for highlighting features in the
 #'   layer on hover.
 #' @param before_id The name of the layer that this layer appears "before",
@@ -423,6 +444,8 @@ add_line_layer <- function(
   max_zoom = NULL,
   popup = NULL,
   tooltip = NULL,
+  tooltip_style = NULL,
+  popup_style = NULL,
   hover_options = NULL,
   before_id = NULL,
   filter = NULL
@@ -483,7 +506,9 @@ add_line_layer <- function(
     tooltip,
     hover_options,
     before_id,
-    filter
+    filter,
+    tooltip_style = tooltip_style,
+    popup_style = popup_style
   )
 
   return(map)
@@ -491,7 +516,7 @@ add_line_layer <- function(
 
 #' Add a heatmap layer to a Mapbox GL map
 #'
-#' @param map A map object created by the `mapboxgl` function.
+#' @param map A map object created by the `mapboxgl` or `maplibre` functions.
 #' @param id A unique ID for the layer.
 #' @param source The ID of the source, alternatively an sf object (which will be converted to a GeoJSON source) or a named list that specifies `type` and `url` for a remote source.
 #' @param source_layer The source layer (for vector sources).
@@ -596,7 +621,7 @@ add_heatmap_layer <- function(
 
 #' Add a fill-extrusion layer to a Mapbox GL map
 #'
-#' @param map A map object created by the `mapboxgl` function.
+#' @param map A map object created by the `mapboxgl` or `maplibre` functions.
 #' @param id A unique ID for the layer.
 #' @param source The ID of the source, alternatively an sf object (which will be converted to a GeoJSON source) or a named list that specifies `type` and `url` for a remote source.
 #' @param source_layer The source layer (for vector sources).
@@ -617,8 +642,9 @@ add_heatmap_layer <- function(
 #' @param slot An optional slot for layer order.
 #' @param min_zoom The minimum zoom level for the layer.
 #' @param max_zoom The maximum zoom level for the layer.
-#' @param popup A column name containing information to display in a popup on click.  Columns containing HTML will be parsed.
-#' @param tooltip A column name containing information to display in a tooltip on hover. Columns containing HTML will be parsed.
+#' @param popup Popup content shown on click: a column name, a `{brace}` template (e.g. `"{name}: {value}"`), or a `concat()`/`number_format()` expression. Columns containing HTML are parsed.
+#' @param tooltip Tooltip content shown on hover; same forms as `popup`.
+#' @param tooltip_style,popup_style Optional appearance for the tooltip/popup: a preset string (`"light"` or `"dark"`) or a [tooltip_style()] object. When omitted, the native (unstyled) appearance is kept.
 #' @param hover_options A named list of options for highlighting features in the layer on hover.
 #' @param before_id The name of the layer that this layer appears "before", allowing you to insert layers below other layers in your basemap (e.g. labels).
 #' @param filter An optional filter expression to subset features in the layer.
@@ -688,14 +714,18 @@ add_fill_extrusion_layer <- function(
   max_zoom = NULL,
   popup = NULL,
   tooltip = NULL,
+  tooltip_style = NULL,
+  popup_style = NULL,
   hover_options = NULL,
   before_id = NULL,
   filter = NULL
 ) {
   # Check if using MapLibre with globe projection and warn
-  if (inherits(map, "maplibregl") &&
+  if (
+    inherits(map, "maplibregl") &&
       !is.null(map$x$projection) &&
-      map$x$projection == "globe") {
+      map$x$projection == "globe"
+  ) {
     warning(
       "Fill-extrusion layers may have rendering artifacts in globe projection. ",
       "Consider using projection = \"mercator\" in maplibre() for better performance. ",
@@ -763,7 +793,9 @@ add_fill_extrusion_layer <- function(
     tooltip,
     hover_options,
     before_id,
-    filter
+    filter,
+    tooltip_style = tooltip_style,
+    popup_style = popup_style
   )
 
   return(map)
@@ -784,6 +816,7 @@ add_fill_extrusion_layer <- function(
 #' @param circle_stroke_opacity The opacity of the circle's stroke.
 #' @param circle_stroke_width The width of the circle's stroke.
 #' @param text_color The color to use for labels on the cluster circles.
+#' @param count_format The formatting of the text labels on the cluster circles to represent the counts. `"abbreviated"` (the default) will use shortened notation, e.g. "11k". `"grouped"` will show comma-separated numbers, e.g. "11,000".  `"raw"` shows the raw value.
 #'
 #' @return A list of cluster options.
 #' @export
@@ -811,8 +844,10 @@ cluster_options <- function(
   circle_stroke_color = NULL,
   circle_stroke_opacity = NULL,
   circle_stroke_width = NULL,
-  text_color = "black"
+  text_color = "black",
+  count_format = c("abbreviated", "grouped", "raw")
 ) {
+  count_format <- match.arg(count_format)
   list(
     max_zoom = max_zoom,
     cluster_radius = cluster_radius,
@@ -824,13 +859,104 @@ cluster_options <- function(
     circle_stroke_color = circle_stroke_color,
     circle_stroke_opacity = circle_stroke_opacity,
     circle_stroke_width = circle_stroke_width,
-    text_color = text_color
+    text_color = text_color,
+    count_format = count_format
+  )
+}
+
+# Build a Mapbox/MapLibre expression that abbreviates a numeric count
+# property the same way native `point_count_abbreviated` does, with a
+# millions extension tacked on:
+#   <1000:        "42"
+#   1000-9999:    "1.2k"
+#   10000-999999: "12k"
+#   >=1000000:    "1.2M"
+# Used by the precomputed cluster path because GL's `number-format`
+# expression supports only locale/currency/min-/max-fraction-digits —
+# the Intl.NumberFormat `notation = "compact"` option is silently
+# ignored, so we can't rely on `number_format()` for this.
+# Warn when a Mapbox GL JS map is rendering a pre-clustered vector
+# tile source via cluster_options(). Mapbox GL JS v3.21.0's native
+# TileProvider PMTiles path currently renders features from multiple
+# source zooms simultaneously at fractional camera zooms, which
+# produces duplicate cluster labels during transitions. MapLibre
+# (via the `pmtiles://` protocol handler) is unaffected. This helper
+# only fires a warning — the feature still works, just with the
+# visual artifact documented upstream.
+.warn_mapbox_pmtiles_cluster <- function(map) {
+  is_mapbox <- inherits(
+    map,
+    c(
+      "mapboxgl",
+      "mapboxgl_proxy",
+      "mapboxgl_compare",
+      "mapboxgl_compare_proxy"
+    )
+  )
+  if (!is_mapbox) return(invisible())
+  rlang::warn(
+    c(
+      "Clustered vector tile sources render with visual artifacts in Mapbox GL JS.",
+      i = "Mapbox GL JS v3.21.0's native PMTiles path can display features from adjacent source zooms at the same time, producing duplicate cluster labels at fractional camera zooms.",
+      i = "MapLibre (via `maplibre()`) renders the same tiles correctly; switching to it avoids the artifact.",
+      i = "See `?cluster_options` for details."
+    ),
+    .frequency = "regularly",
+    .frequency_id = "mapgl_mapbox_pmtiles_cluster"
+  )
+}
+
+# Resolve the count-label expression for a given format + backend.
+# is_native=TRUE uses the native `point_count_abbreviated` property
+# when available; precomputed tiles get the case-expression fallback.
+.cluster_count_label <- function(count_format, is_native) {
+  switch(
+    count_format,
+    abbreviated = if (is_native) {
+      get_column("point_count_abbreviated")
+    } else {
+      .cluster_count_label_expr("point_count")
+    },
+    grouped = number_format(column = "point_count"),
+    raw = list("to-string", list("get", "point_count"))
+  )
+}
+
+.cluster_count_label_expr <- function(column = "point_count") {
+  col <- list("get", column)
+  list(
+    "case",
+    list(">=", col, 1000000),
+    list(
+      "concat",
+      list(
+        "to-string",
+        list("/", list("floor", list("/", col, 100000)), 10)
+      ),
+      "M"
+    ),
+    list(">=", col, 10000),
+    list(
+      "concat",
+      list("to-string", list("floor", list("/", col, 1000))),
+      "k"
+    ),
+    list(">=", col, 1000),
+    list(
+      "concat",
+      list(
+        "to-string",
+        list("/", list("floor", list("/", col, 100)), 10)
+      ),
+      "k"
+    ),
+    list("to-string", col)
   )
 }
 
 #' Add a circle layer to a Mapbox GL map
 #'
-#' @param map A map object created by the `mapboxgl` function.
+#' @param map A map object created by the `mapboxgl` or `maplibre` functions.
 #' @param id A unique ID for the layer.
 #' @param source The ID of the source, alternatively an sf object (which will be converted to a GeoJSON source) or a named list that specifies `type` and `url` for a remote source.
 #' @param source_layer The source layer (for vector sources).
@@ -851,12 +977,15 @@ cluster_options <- function(
 #' @param slot An optional slot for layer order.
 #' @param min_zoom The minimum zoom level for the layer.
 #' @param max_zoom The maximum zoom level for the layer.
-#' @param popup A column name containing information to display in a popup on click.  Columns containing HTML will be parsed.
-#' @param tooltip A column name containing information to display in a tooltip on hover. Columns containing HTML will be parsed.
+#' @param popup Popup content shown on click: a column name, a `{brace}` template (e.g. `"{name}: {value}"`), or a `concat()`/`number_format()` expression. Columns containing HTML are parsed.
+#' @param tooltip Tooltip content shown on hover; same forms as `popup`.
+#' @param tooltip_style,popup_style Optional appearance for the tooltip/popup: a preset string (`"light"` or `"dark"`) or a [tooltip_style()] object. When omitted, the native (unstyled) appearance is kept.
 #' @param hover_options A named list of options for highlighting features in the layer on hover.
 #' @param before_id The name of the layer that this layer appears "before", allowing you to insert layers below other layers in your basemap (e.g. labels).
 #' @param filter An optional filter expression to subset features in the layer.
-#' @param cluster_options A list of options for clustering circles, created by the `cluster_options()` function.
+#' @param cluster_options A list of options for clustering circles, created by the `cluster_options()` function. Two input shapes are supported: pass an `sf`/`sfc` object as `source` for native live clustering (a GeoJSON source is injected automatically), or pass the id of an already-registered vector source (e.g. from `add_pmtiles_source()`) along with `source_layer` to use pre-clustered vector tiles such as those produced by the freestiler package. In the latter case the cluster-count label is abbreviated client-side via [number_format()].
+#'
+#'   **Updating a clustered layer in Shiny:** the shortcut creates three layers (`"id"`, `"id-clusters"`, `"id-cluster-count"`) on top of one source. For reactive data updates the recommended pattern is [set_source()], which replaces the source's data and lets Mapbox/MapLibre re-cluster automatically without tearing down the layers: `mapboxgl_proxy("map") |> set_source(layer_id = "circles", source = filtered())`. If you need to remove a clustered layer entirely (e.g. before switching backends), pass the full trio to [clear_layer()]: `clear_layer(proxy, c("circles", "circles-clusters", "circles-cluster-count"))`.
 #'
 #' @return The modified map object with the new circle layer added.
 #' @export
@@ -955,6 +1084,8 @@ add_circle_layer <- function(
   max_zoom = NULL,
   popup = NULL,
   tooltip = NULL,
+  tooltip_style = NULL,
+  popup_style = NULL,
   hover_options = NULL,
   before_id = NULL,
   filter = NULL,
@@ -988,14 +1119,45 @@ add_circle_layer <- function(
   if (!is.null(visibility)) layout[["visibility"]] <- visibility
 
   if (!is.null(cluster_options)) {
-    # Add clustering to the source
-    map <- add_source(
-      map,
-      id = id,
-      data = source,
-      cluster = TRUE,
-      clusterMaxZoom = cluster_options$max_zoom,
-      clusterRadius = cluster_options$cluster_radius
+    # Dispatch on source shape. sf/sfc takes precedence so existing
+    # calls that incidentally pass `source_layer` alongside sf data
+    # (silently ignored today) don't regress.
+    if (inherits(source, c("sf", "sfc"))) {
+      # Native live clustering: inject a clustered GeoJSON source.
+      map <- add_source(
+        map,
+        id = id,
+        data = source,
+        cluster = TRUE,
+        clusterMaxZoom = cluster_options$max_zoom,
+        clusterRadius = cluster_options$cluster_radius
+      )
+      cluster_source <- id
+      cluster_source_layer <- NULL
+      is_native_cluster <- TRUE
+    } else if (
+      is.character(source) &&
+        length(source) == 1 &&
+        !is.null(source_layer)
+    ) {
+      # Pre-clustered vector tiles (e.g. PMTiles from the freestiler
+      # package, or tippecanoe-clustered tiles). Use the source as-is.
+      cluster_source <- source
+      cluster_source_layer <- source_layer
+      is_native_cluster <- FALSE
+      .warn_mapbox_pmtiles_cluster(map)
+    } else {
+      rlang::abort(c(
+        "`cluster_options` requires one of the following shapes:",
+        i = "`source` = an sf/sfc object (live clustering is applied automatically), or",
+        i = "`source` = an existing source id (string) + `source_layer` = the source-layer name, for pre-clustered vector tiles.",
+        i = "To cluster against a pre-registered clustered GeoJSON source referenced by id, build the three cluster layers manually with `add_layer()`."
+      ))
+    }
+
+    count_label_expr <- .cluster_count_label(
+      cluster_options$count_format %||% "abbreviated",
+      is_native_cluster
     )
 
     # Add clustered circles layer
@@ -1003,7 +1165,8 @@ add_circle_layer <- function(
       map,
       id = paste0(id, "-clusters"),
       type = "circle",
-      source = id,
+      source = cluster_source,
+      source_layer = cluster_source_layer,
       filter = c("has", "point_count"),
       paint = list(
         "circle-color" = step_expr(
@@ -1018,7 +1181,8 @@ add_circle_layer <- function(
           stops = cluster_options$radius_stops[-1],
           values = cluster_options$count_stops[-1]
         )
-      )
+      ),
+      layout = list(visibility = visibility)
     )
 
     # Add optional paint properties if they are not NULL
@@ -1042,11 +1206,13 @@ add_circle_layer <- function(
     map <- add_symbol_layer(
       map,
       id = paste0(id, "-cluster-count"),
-      source = id,
+      source = cluster_source,
+      source_layer = cluster_source_layer,
       filter = c("has", "point_count"),
-      text_field = get_column("point_count_abbreviated"),
+      text_field = count_label_expr,
       text_size = 12,
-      text_color = cluster_options$text_color
+      text_color = cluster_options$text_color,
+      visibility = visibility
     )
 
     # Add unclustered points
@@ -1054,12 +1220,15 @@ add_circle_layer <- function(
       map,
       id = id,
       type = "circle",
-      source = id,
+      source = cluster_source,
+      source_layer = cluster_source_layer,
       filter = list("!", c("has", "point_count")),
       paint = paint,
       layout = layout,
       popup = popup,
       tooltip = tooltip,
+      tooltip_style = tooltip_style,
+      popup_style = popup_style,
       hover_options = hover_options,
       slot = slot,
       min_zoom = min_zoom,
@@ -1082,7 +1251,9 @@ add_circle_layer <- function(
       tooltip,
       hover_options,
       before_id,
-      filter
+      filter,
+      tooltip_style = tooltip_style,
+      popup_style = popup_style
     )
   }
 
@@ -1296,10 +1467,13 @@ add_raster_layer <- function(
 #' @param max_zoom The maximum zoom level for the layer.
 #' @param popup A column name containing information to display in a popup on click. Columns containing HTML will be parsed.
 #' @param tooltip A column name containing information to display in a tooltip on hover. Columns containing HTML will be parsed.
+#' @param tooltip_style,popup_style Optional appearance for the tooltip/popup: a preset string (`"light"` or `"dark"`) or a [tooltip_style()] object. When omitted, the native (unstyled) appearance is kept.
 #' @param hover_options A named list of options for highlighting features in the layer on hover. Not all elements of SVG icons can be styled.
 #' @param before_id The name of the layer that this layer appears "before", allowing you to insert layers below other layers in your basemap (e.g. labels).
 #' @param filter An optional filter expression to subset features in the layer.
-#' @param cluster_options A list of options for clustering symbols, created by the `cluster_options()` function.
+#' @param cluster_options A list of options for clustering symbols, created by the `cluster_options()` function. Two input shapes are supported: pass an `sf`/`sfc` object as `source` for native live clustering (a GeoJSON source is injected automatically), or pass the id of an already-registered vector source (e.g. from `add_pmtiles_source()`) along with `source_layer` to use pre-clustered vector tiles such as those produced by the freestiler package. In the latter case the cluster-count label is abbreviated client-side via [number_format()].
+#'
+#'   **Updating a clustered layer in Shiny:** the shortcut creates three layers (`"id"`, `"id-clusters"`, `"id-cluster-count"`) on top of one source. For reactive data updates the recommended pattern is [set_source()], which replaces the source's data and lets Mapbox/MapLibre re-cluster automatically without tearing down the layers: `mapboxgl_proxy("map") |> set_source(layer_id = "pts", source = filtered())`. If you need to remove a clustered layer entirely (e.g. before switching backends), pass the full trio to [clear_layer()]: `clear_layer(proxy, c("pts", "pts-clusters", "pts-cluster-count"))`.
 #'
 #' @return The modified map object with the new symbol layer added.
 #' @export
@@ -1428,6 +1602,8 @@ add_symbol_layer <- function(
   max_zoom = NULL,
   popup = NULL,
   tooltip = NULL,
+  tooltip_style = NULL,
+  popup_style = NULL,
   hover_options = NULL,
   before_id = NULL,
   filter = NULL,
@@ -1538,14 +1714,40 @@ add_symbol_layer <- function(
   if (!is.null(visibility)) layout[["visibility"]] <- visibility
 
   if (!is.null(cluster_options)) {
-    # Add clustering to the source
-    map <- add_source(
-      map,
-      id = id,
-      data = source,
-      cluster = TRUE,
-      clusterMaxZoom = cluster_options$max_zoom,
-      clusterRadius = cluster_options$cluster_radius
+    # Dispatch on source shape. See add_circle_layer() for notes.
+    if (inherits(source, c("sf", "sfc"))) {
+      map <- add_source(
+        map,
+        id = id,
+        data = source,
+        cluster = TRUE,
+        clusterMaxZoom = cluster_options$max_zoom,
+        clusterRadius = cluster_options$cluster_radius
+      )
+      cluster_source <- id
+      cluster_source_layer <- NULL
+      is_native_cluster <- TRUE
+    } else if (
+      is.character(source) &&
+        length(source) == 1 &&
+        !is.null(source_layer)
+    ) {
+      cluster_source <- source
+      cluster_source_layer <- source_layer
+      is_native_cluster <- FALSE
+      .warn_mapbox_pmtiles_cluster(map)
+    } else {
+      rlang::abort(c(
+        "`cluster_options` requires one of the following shapes:",
+        i = "`source` = an sf/sfc object (live clustering is applied automatically), or",
+        i = "`source` = an existing source id (string) + `source_layer` = the source-layer name, for pre-clustered vector tiles.",
+        i = "To cluster against a pre-registered clustered GeoJSON source referenced by id, build the three cluster layers manually with `add_layer()`."
+      ))
+    }
+
+    count_label_expr <- .cluster_count_label(
+      cluster_options$count_format %||% "abbreviated",
+      is_native_cluster
     )
 
     # Add clustered symbols layer
@@ -1553,7 +1755,8 @@ add_symbol_layer <- function(
       map,
       id = paste0(id, "-clusters"),
       type = "circle",
-      source = id,
+      source = cluster_source,
+      source_layer = cluster_source_layer,
       filter = c("has", "point_count"),
       paint = list(
         "circle-color" = step_expr(
@@ -1568,7 +1771,8 @@ add_symbol_layer <- function(
           stops = cluster_options$radius_stops[-1],
           values = cluster_options$count_stops[-1]
         )
-      )
+      ),
+      layout = list(visibility = visibility)
     )
 
     # Add optional paint properties if they are not NULL
@@ -1592,11 +1796,13 @@ add_symbol_layer <- function(
     map <- add_symbol_layer(
       map,
       id = paste0(id, "-cluster-count"),
-      source = id,
+      source = cluster_source,
+      source_layer = cluster_source_layer,
       filter = c("has", "point_count"),
-      text_field = get_column("point_count_abbreviated"),
+      text_field = count_label_expr,
       text_size = 12,
-      text_color = cluster_options$text_color
+      text_color = cluster_options$text_color,
+      visibility = visibility
     )
 
     # Add unclustered symbols
@@ -1604,12 +1810,15 @@ add_symbol_layer <- function(
       map,
       id = id,
       type = "symbol",
-      source = id,
+      source = cluster_source,
+      source_layer = cluster_source_layer,
       filter = list("!", c("has", "point_count")),
       paint = paint,
       layout = layout,
       popup = popup,
       tooltip = tooltip,
+      tooltip_style = tooltip_style,
+      popup_style = popup_style,
       hover_options = hover_options,
       slot = slot,
       min_zoom = min_zoom,
@@ -1632,7 +1841,9 @@ add_symbol_layer <- function(
       tooltip,
       hover_options,
       before_id,
-      filter
+      filter,
+      tooltip_style = tooltip_style,
+      popup_style = popup_style
     )
   }
 

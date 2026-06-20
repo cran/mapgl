@@ -1,3 +1,33 @@
+# mapgl 0.5.0
+
+* Tooltips and popups now accept `{brace}` templates package-wide. Any layer's `tooltip`/`popup` (and `set_tooltip()`/`set_popup()`) can take a glue-style template such as `"{name}: {population}"`, in addition to the existing column name and `concat()`/`number_format()` expression forms; substituted values are HTML-escaped.
+
+* New `tooltip_style()` / `popup_style()` helpers theme tooltips and popups without hand-written HTML/CSS, mirroring `legend_style()`. Pass a preset (`"light"`/`"dark"`) or custom appearance (background, border, radius, font, padding, shadow) to the new `tooltip_style`/`popup_style` argument on layer functions (and `set_tooltip()`/`set_popup()`). Tooltips are unstyled by default, so existing maps are unchanged.
+
+* New `add_flowmap()` draws animated origin-destination flow maps powered by Flowmap.gl (deck.gl). It supports temporal flows, location clustering, customizable color schemes (`flowmap_color_schemes()`), CSS blend modes, and themeable tooltips and popups (per-object-type content via `list(location = , flow = )`, styled with `tooltip_style()`/`popup_style()`). Flow filters and settings can be updated reactively in Shiny with `set_flowmap_filter()` and `set_flowmap_settings()`, and a `"window"`-mode `add_slider_control()` can drive a flowmap's temporal range. The heavy flow-mapping libraries load on demand, so maps without a flowmap are unaffected. Adapted from Egor Kotov's contribution in #205, with the bundled `bixi_locations` and `bixi_flows` datasets as a ready-to-use example.
+
+* New `add_slider_control()` adds an interactive slider that filters and/or animates one or more layers by a numeric feature property. It composes with a layer's initial `filter`, later `set_filter()` calls, and interactive legends (intersecting via `["all", ...]`) rather than replacing them. Modes are `"sequential"` (one value), `"cumulative"` (everything through a value), and `"window"` (a selected range that can also drive flowmap time ranges; `window_behavior` chooses a `"resizable"` two-edge range or a `"fixed"`-width band you pan). Two presentations: the default `"compact"` slider, or `presentation = "timeline"` — a prominent, brushable histogram (drag the selected window across the bars, drag its edges to resize) modeled on Egor Kotov's FlowMapBlue time control (#205). Supports paint-property animation, an optional play button, and an optional density histogram (`histogram`/`histogram_data`/`counts`, drawn with d3 loaded on demand). New `slider_style()` presets and overrides control the container, play button, track, thumb, and histogram appearance, and `draggable = TRUE` lets the user reposition the panel anywhere on the map (as with `add_legend()`). Companions `update_slider_control()` (for Shiny proxies) and `as_time_property()` (coerce `Date`/`POSIXct` to a numeric filter property) round out the feature.
+
+* `add_categorical_legend()` and `add_legend()` gain a `patch_spacing` argument (`"uniform"`/`"proportional"`). With `"proportional"`, each legend row's height tracks its own symbol size, giving proportional vertical spacing for graduated-symbol legends; the default `"uniform"` preserves existing behavior (#206, thanks to @mtennekes).
+* 
+* New `add_h3t_source()` adds a tiled H3 (h3t) source for MapLibre maps, fetching only the H3 cells in the current viewport from a `{z}/{x}/{y}` tile endpoint via the `h3tiles://` protocol — a scalable alternative to `add_h3j_source()` for large datasets. Works with multiple sources per map and on both sides of `compare()`. Bundled `h3j-h3t` library updated to 0.9.7 (#199, thanks to @bbest).
+
+* Update MapLibre GL JS to v5.24.0 and Mapbox GL JS to v3.24.0.
+
+* Fixed `add_legend()` silently ignoring the `target` argument for MapLibre compare widgets: the compare dispatch checked for class `"maplibre_compare"` while the widget class is `"maplibregl_compare"`, so legends were attached as regular map legends instead of compare-level legends.
+
+* `compare()` now supports synchronizing more than two maps (#204). Pass additional maps after `map1` and `map2` with `mode = "sync"`, and control the grid layout with the new `ncol` argument. In Shiny, maps in multi-map widgets are addressed as `"map1"` through `"mapN"` via `map_side` in the compare proxy functions (integers also accepted, e.g. `map_side = 3`), and emit input values like `input$id_map3_view`. Legends can be targeted at individual grid maps with `target = "map3"`.
+
+* New bivariate mapping support with `bivariate_scale()`, `bivariate_palettes()`, and `add_bivariate_legend()`. Bivariate scales use 3-by-3 palettes, support custom 3-by-3 color matrices, optional `x_breaks` and `y_breaks` for stable bins, and explicit `na_color` handling (#181).
+
+* Continuous legends can now expose an opt-in color-ramp picker. Use `color_ramps`, `selected_ramp`, and `ramp_picker = TRUE` with continuous legends to let readers switch palettes directly from the legend; named ramps display labels by default, and `ramp_labels = FALSE` creates a compact picker.
+
+* `interpolate_palette()` now carries additional scale metadata for downstream legends, including the source column, missing-value color, available color ramps, and selected ramp.
+
+* Compare maps now initialize legend interactivity assets so supported dynamic legend features can be used in compare views.
+
+* GitHub source archives are now slimmed with `.gitattributes export-ignore` rules for generated site and vignette assets. This preserves GitHub Pages content in the repository while avoiding large downloads during GitHub-based package installs.
+
 # mapgl 0.4.6
 
 * New `save_map()` function renders a map widget to a static PNG file using headless Chrome via the chromote package. Supports options for hiding controls, including/excluding legends and scale bars, replacing the basemap with a solid color, and retina-quality output with `image_scale`. New `print_map()` function provides the same capability for use in Quarto and R Markdown documents.

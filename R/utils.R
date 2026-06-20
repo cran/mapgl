@@ -430,6 +430,31 @@
     )
   }
 
+  # Collapse toggle button — inherit legend theme when styled
+  collapse_btn_styles <- character(0)
+  if (!is.null(style$border_color)) {
+    collapse_btn_styles <- c(
+      collapse_btn_styles,
+      sprintf("border-color: %s !important;", style$border_color)
+    )
+  }
+  if (!is.null(style$text_color)) {
+    collapse_btn_styles <- c(
+      collapse_btn_styles,
+      sprintf("color: %s !important;", style$text_color)
+    )
+  }
+  if (length(collapse_btn_styles) > 0) {
+    css_rules <- c(
+      css_rules,
+      sprintf(
+        "#%s .mapgl-legend-collapse-btn {\n  %s\n}",
+        unique_id,
+        paste(collapse_btn_styles, collapse = "\n  ")
+      )
+    )
+  }
+
   if (length(css_rules) > 0) {
     return(paste0("\n", paste(css_rules, collapse = "\n"), "\n"))
   } else {
@@ -546,4 +571,36 @@ legend_style <- function(
 
   class(style_list) <- "mapgl_legend_style"
   return(style_list)
+}
+
+# Internal function to invoke a method on a map proxy
+mapgl_invoke_method <- function(map, type, ...) {
+  args <- list(...)
+  if (any(inherits(map, "mapboxgl_proxy"), inherits(map, "maplibre_proxy"))) {
+    if (
+      inherits(map, "mapboxgl_compare_proxy") ||
+        inherits(map, "maplibre_compare_proxy")
+    ) {
+      proxy_class <- if (inherits(map, "mapboxgl_compare_proxy"))
+        "mapboxgl-compare-proxy" else "maplibre-compare-proxy"
+      map$session$sendCustomMessage(
+        proxy_class,
+        list(
+          id = map$id,
+          message = c(list(type = type, map = map$map_side), args)
+        )
+      )
+    } else {
+      proxy_class <- if (inherits(map, "mapboxgl_proxy")) "mapboxgl-proxy" else
+        "maplibre-proxy"
+      map$session$sendCustomMessage(
+        proxy_class,
+        list(
+          id = map$id,
+          message = c(list(type = type), args)
+        )
+      )
+    }
+  }
+  return(map)
 }

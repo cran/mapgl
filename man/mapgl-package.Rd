@@ -21,5 +21,10 @@ Useful links:
 \author{
 \strong{Maintainer}: Kyle Walker \email{kyle@walker-data.com}
 
+Other contributors:
+\itemize{
+  \item Egor Kotov \email{kotov.egor@gmail.com} [contributor]
+}
+
 }
 \keyword{internal}
